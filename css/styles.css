@@ -1,0 +1,29 @@
+/* RTL friendly tweaks */
+:root{
+  --card-radius: 16px;
+}
+.page .card{
+  border-radius: var(--card-radius);
+}
+.card-header{
+  border-top-left-radius: var(--card-radius) !important;
+  border-top-right-radius: var(--card-radius) !important;
+}
+.table td, .table th{
+  vertical-align: middle;
+}
+.kpi-card{
+  border: 0;
+  box-shadow: 0 8px 20px rgba(0,0,0,.06);
+}
+.kpi-title{
+  font-size: .85rem;
+  color: #6c757d;
+}
+.kpi-value{
+  font-size: 1.3rem;
+  font-weight: 800;
+}
+.small-mono{
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
