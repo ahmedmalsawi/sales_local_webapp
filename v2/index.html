@@ -1,0 +1,694 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>لوحة مبيعات محلية (بدون سيرفر)</title>
+
+  <!-- Bootstrap RTL (CDN) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.rtl.min.css">
+
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body class="bg-body-tertiary" data-theme="light">
+
+<nav class="navbar navbar-expand-lg bg-white border-bottom sticky-top">
+  <div class="container-fluid">
+    <a class="navbar-brand fw-bold" href="#" data-nav="dashboard">📊 Sales Local</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#topNav" aria-controls="topNav" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="topNav">
+      <ul class="navbar-nav me-auto mb-2 mb-lg-0 gap-1">
+        <li class="nav-item"><a class="nav-link active" href="#" data-nav="dashboard">📈 الداشبورد</a></li>
+        <li class="nav-item"><a class="nav-link" href="#" data-nav="upload">📁 رفع ملفات Excel</a></li>
+        <li class="nav-item"><a class="nav-link" href="#" data-nav="reports">📋 التقارير</a></li>
+        <li class="nav-item"><a class="nav-link" href="#" data-nav="data">💾 البيانات</a></li>
+        <li class="nav-item"><a class="nav-link" href="#" data-nav="settings">⚙️ الإعدادات</a></li>
+      </ul>
+
+      <div class="d-flex gap-2 align-items-center">
+        <span class="badge text-bg-secondary d-none" id="badgeOfflineLib">⚠️ ملاحظة: بعض المكتبات لم تُحمَّل (تأكد من الإنترنت)</span>
+        <button class="btn btn-outline-primary btn-sm" id="btnLogin">تسجيل الدخول</button>
+        <button class="btn btn-outline-secondary btn-sm d-none" id="btnLogout">تسجيل خروج</button>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<main class="container py-4">
+
+  <!-- Alerts -->
+  <div id="globalAlertHost"></div>
+
+  <!-- DASHBOARD -->
+  <section id="page-dashboard" class="page">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+      <div>
+        <h2 class="mb-1 fw-bold">📊 الداشبورد</h2>
+        <p class="text-secondary small mb-0">تقارير مبيعات من ملفات Excel — محفوظة محليًا على جهازك (IndexedDB)</p>
+      </div>
+
+      <div class="card p-3 shadow-sm">
+        <div class="d-flex flex-wrap gap-3 align-items-end">
+          <div>
+            <label class="form-label small mb-1">📅 من</label>
+            <input type="date" class="form-control form-control-sm" id="dashFrom">
+          </div>
+          <div>
+            <label class="form-label small mb-1">📅 إلى</label>
+            <input type="date" class="form-control form-control-sm" id="dashTo">
+          </div>
+          <div>
+            <label class="form-label small mb-1">🏢 الفرع</label>
+            <select class="form-select form-select-sm" id="dashBranch"></select>
+          </div>
+          <div>
+            <button class="btn btn-primary btn-sm" id="btnRefreshDash">🔄 تحديث</button>
+          </div>
+          <div class="d-flex gap-2">
+            <button class="btn btn-outline-success btn-sm" id="btnDownloadDash">📥 CSV</button>
+            <button class="btn btn-outline-primary btn-sm" id="btnDownloadDashXlsx">📊 Excel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-3 mb-3" id="dashCards"></div>
+
+    <div class="row g-3">
+      <div class="col-12 col-lg-7">
+        <div class="card h-100">
+          <div class="card-header bg-white fw-bold">صافي المبيعات حسب اليوم</div>
+          <div class="card-body">
+            <canvas id="chartDaily" height="140"></canvas>
+            <div class="small text-secondary mt-2" id="chartDailyFallback" style="display:none;">
+              لا يمكن عرض الرسم البياني الآن (تأكد من تحميل Chart.js).
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-lg-5">
+        <div class="card h-100">
+          <div class="card-header bg-white fw-bold">أفضل الفروع (صافي)</div>
+          <div class="card-body">
+            <canvas id="chartBranches" height="180"></canvas>
+            <div class="small text-secondary mt-2" id="chartBranchesFallback" style="display:none;">
+              لا يمكن عرض الرسم البياني الآن (تأكد من تحميل Chart.js).
+            </div>
+            <hr/>
+            <div class="table-responsive">
+              <table class="table table-sm align-middle" id="tblTopBranches">
+                <thead><tr><th>الفرع</th><th class="text-nowrap">صافي</th><th>فواتير</th><th>مرتجعات</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-3 mt-0">
+      <div class="col-12 col-lg-7">
+        <div class="card h-100">
+          <div class="card-header bg-white fw-bold">مقارنة شهرية (صافي)</div>
+          <div class="card-body">
+            <canvas id="chartMonthly" height="150"></canvas>
+            <div class="small text-secondary mt-2" id="chartMonthlyFallback" style="display:none;">
+              لا يمكن عرض الرسم البياني الآن (تأكد من تحميل Chart.js).
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-lg-5">
+        <div class="card h-100">
+          <div class="card-header bg-white fw-bold">نسبة المرتجعات حسب الفرع</div>
+          <div class="card-body">
+            <canvas id="chartRefundRate" height="170"></canvas>
+            <div class="small text-secondary mt-2" id="chartRefundRateFallback" style="display:none;">
+              لا يمكن عرض الرسم البياني الآن (تأكد من تحميل Chart.js).
+            </div>
+            <hr/>
+            <div class="table-responsive">
+              <table class="table table-sm align-middle" id="tblRefundRate">
+                <thead>
+                  <tr>
+                    <th>الفرع</th>
+                    <th class="text-nowrap">Refund %</th>
+                    <th class="text-nowrap">فواتير</th>
+                    <th class="text-nowrap">مرتجعات</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-3 mt-0">
+      <div class="col-12 col-lg-6">
+        <div class="card h-100">
+          <div class="card-header bg-white fw-bold">Top customers (صافي)</div>
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="table table-sm align-middle" id="tblTopCustomers">
+                <thead>
+                  <tr>
+                    <th>العميل</th>
+                    <th class="text-nowrap">صافي</th>
+                    <th class="text-nowrap">فواتير</th>
+                    <th class="text-nowrap">مرتجعات</th>
+                    <th class="text-nowrap">عدد</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-lg-6">
+        <div class="card h-100">
+          <div class="card-header bg-white fw-bold">أفضل موظف لكل فرع</div>
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="table table-sm align-middle" id="tblBestSalesByBranch">
+                <thead>
+                  <tr>
+                    <th>الفرع</th>
+                    <th>الموظف</th>
+                    <th class="text-nowrap">صافي</th>
+                    <th class="text-nowrap">فواتير</th>
+                    <th class="text-nowrap">مرتجعات</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12">
+        <div class="card">
+          <div class="card-header bg-white fw-bold">تنبيهات (مرتجعات عالية / مبيعات منخفضة)</div>
+          <div class="card-body">
+            <div class="small text-secondary mb-2">* تنبيه المرتجعات العالية: Refund% اليوم ≥ 20% مع مرتجعات ≥ 200.</div>
+            <div class="small text-secondary mb-3">* تنبيه المبيعات المنخفضة: أقل أيام صافي مبيعات داخل الفلتر.</div>
+            <div class="table-responsive">
+              <table class="table table-sm align-middle" id="tblAlerts">
+                <thead>
+                  <tr>
+                    <th>التاريخ</th>
+                    <th>النوع</th>
+                    <th class="text-nowrap">صافي</th>
+                    <th class="text-nowrap">فواتير</th>
+                    <th class="text-nowrap">مرتجعات</th>
+                    <th class="text-nowrap">Refund %</th>
+                    <th>ملاحظة</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </section>
+
+  <!-- UPLOAD -->
+  <section id="page-upload" class="page d-none">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+      <div>
+        <h2 class="mb-1 fw-bold">📁 رفع ملفات Excel</h2>
+        <p class="text-secondary small mb-0">
+          يدعم حالياً ملفات مثل: <span class="fw-semibold">Posted Invoice inquiry</span> و <span class="fw-semibold">Refund Inquiry</span>
+        </p>
+      </div>
+      <div class="d-flex gap-2">
+        <button class="btn btn-outline-secondary btn-sm" id="btnDownloadTemplateInfo">📖 تحميل دليل الأعمدة (CSV)</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <div class="row g-3 align-items-end">
+          <div class="col-12 col-lg-7">
+            <label class="form-label">اختَر ملف Excel (.xlsx)</label>
+            <input type="file" class="form-control" id="fileInput" accept=".xlsx,.xls" multiple>
+            <div class="form-text">
+              سيتم فحص التكرار تلقائياً. التكرار = نفس (نوع المستند + الفرع + رقم المستند).
+            </div>
+          </div>
+          <div class="col-12 col-lg-5">
+            <div class="d-flex gap-2 justify-content-lg-end">
+              <button class="btn btn-primary" id="btnImport">استيراد</button>
+              <button class="btn btn-outline-danger" id="btnClearFiles">مسح الاختيار</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-3">
+          <div class="progress" role="progressbar" aria-label="Import progress" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+            <div class="progress-bar" id="importProgress" style="width: 0%">0%</div>
+          </div>
+        </div>
+
+        <div class="mt-3" id="importSummary"></div>
+        <hr/>
+        <h6 class="mb-2">معاينة أول 15 سجل</h6>
+        <div class="table-responsive">
+          <table class="table table-sm table-striped align-middle" id="tblPreview">
+            <thead></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- REPORTS -->
+  <section id="page-reports" class="page d-none">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+      <div>
+        <h2 class="mb-1 fw-bold">📋 التقارير</h2>
+        <p class="text-secondary small mb-0">فلتر بالتاريخ/الفرع/النوع/الموظف، ثم نزّل CSV أو Excel.</p>
+      </div>
+      <div class="card p-3 shadow-sm">
+        <div class="d-flex flex-wrap gap-3 align-items-end">
+          <div>
+            <label class="form-label small mb-1">📅 من</label>
+            <input type="date" class="form-control form-control-sm" id="repFrom">
+          </div>
+          <div>
+            <label class="form-label small mb-1">📅 إلى</label>
+            <input type="date" class="form-control form-control-sm" id="repTo">
+          </div>
+          <div>
+            <label class="form-label small mb-1">🏢 الفرع</label>
+            <select class="form-select form-select-sm" id="repBranch"></select>
+          </div>
+          <div>
+            <label class="form-label small mb-1">نوع</label>
+            <select class="form-select form-select-sm" id="repType">
+              <option value="all">الكل</option>
+              <option value="invoice">فواتير</option>
+              <option value="refund">مرتجعات</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="form-label small mb-1">الموظف (Sales)</label>
+            <div class="msel" id="repSalesMsel">
+              <button type="button" class="btn btn-outline-secondary btn-sm" id="repSalesBtn">كل الموظفين</button>
+              <div class="msel-menu card shadow-sm p-2">
+                <input class="form-control form-control-sm mb-2" id="repSalesSearch" placeholder="بحث...">
+                <div class="msel-list" id="repSalesList"></div>
+                <div class="d-flex justify-content-between mt-2">
+                  <button type="button" class="btn btn-sm btn-link" id="repSalesAll">تحديد الكل</button>
+                  <button type="button" class="btn btn-sm btn-link" id="repSalesClear">مسح</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <button class="btn btn-primary btn-sm" id="btnRunReports">عرض</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-3">
+      <div class="col-12 col-xl-6">
+        <div class="card">
+          <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <span class="fw-bold">ملخص حسب الفرع</span>
+            <div class="d-flex gap-2">
+              <button class="btn btn-outline-success btn-sm" data-dl="branch">CSV</button>
+              <button class="btn btn-outline-primary btn-sm" data-dl-xlsx="branch">Excel</button>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="table table-sm align-middle" id="tblByBranch">
+                <thead>
+                  <tr>
+                    <th>الفرع</th>
+                    <th class="text-nowrap">صافي</th>
+                    <th class="text-nowrap">إجمالي فواتير</th>
+                    <th class="text-nowrap">إجمالي مرتجعات</th>
+                    <th class="text-nowrap">عدد الفواتير</th>
+                    <th class="text-nowrap">عدد المرتجعات</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12 col-xl-6">
+        <div class="card">
+          <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <span class="fw-bold">ملخص حسب الموظف (Sales)</span>
+            <div class="d-flex gap-2">
+              <button class="btn btn-outline-success btn-sm" data-dl="salesperson">CSV</button>
+              <button class="btn btn-outline-primary btn-sm" data-dl-xlsx="salesperson">Excel</button>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="table table-sm align-middle" id="tblBySalesperson">
+                <thead>
+                  <tr>
+                    <th>الموظف</th>
+                    <th class="text-nowrap">صافي</th>
+                    <th class="text-nowrap">فواتير</th>
+                    <th class="text-nowrap">مرتجعات</th>
+                    <th class="text-nowrap">عدد العمليات</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <div class="small text-secondary mt-2">ملاحظة: إذا كانت خانة Sales فارغة في المصدر، سيظهر "(غير محدد)".</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12">
+        <div class="card">
+          <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <span class="fw-bold">قائمة العمليات (بحث + تنزيل)</span>
+            <div class="d-flex gap-2 align-items-center">
+              <input class="form-control form-control-sm" id="txtSearchTx" placeholder="ابحث (رقم/عميل/فرع/موظف)..." style="min-width: 240px;">
+              <button class="btn btn-outline-success btn-sm" data-dl="transactions">CSV</button>
+              <button class="btn btn-outline-primary btn-sm" data-dl-xlsx="transactions">Excel</button>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="table-responsive" style="max-height: 520px; overflow:auto;">
+              <table class="table table-sm table-striped align-middle" id="tblTransactions">
+                <thead></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <div class="small text-secondary mt-2">نصيحة: لو البيانات كبيرة، استخدم فلتر التاريخ/الفرع لتقليل الحمل.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12">
+        <div class="card">
+          <div class="card-header bg-white fw-bold">تحليلات إضافية</div>
+          <div class="card-body">
+            <div class="row g-3">
+              <div class="col-12 col-lg-6">
+                <div class="card h-100">
+                  <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <span class="fw-bold">Top customers</span>
+                    <div class="d-flex gap-2">
+                      <button class="btn btn-outline-success btn-sm" data-dl="topcustomers">CSV</button>
+                      <button class="btn btn-outline-primary btn-sm" data-dl-xlsx="topcustomers">Excel</button>
+                    </div>
+                  </div>
+                  <div class="card-body">
+                    <div class="table-responsive">
+                      <table class="table table-sm align-middle" id="tblRepTopCustomers">
+                        <thead>
+                          <tr>
+                            <th>العميل</th>
+                            <th class="text-nowrap">صافي</th>
+                            <th class="text-nowrap">فواتير</th>
+                            <th class="text-nowrap">مرتجعات</th>
+                            <th class="text-nowrap">عدد</th>
+                          </tr>
+                        </thead>
+                        <tbody></tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-12 col-lg-6">
+                <div class="card h-100">
+                  <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <span class="fw-bold">Refund rate per branch</span>
+                    <div class="d-flex gap-2">
+                      <button class="btn btn-outline-success btn-sm" data-dl="refundirate">CSV</button>
+                      <button class="btn btn-outline-primary btn-sm" data-dl-xlsx="refundirate">Excel</button>
+                    </div>
+                  </div>
+                  <div class="card-body">
+                    <canvas id="chartRepRefundRate" height="140"></canvas>
+                    <div class="small text-secondary mt-2" id="chartRepRefundRateFallback" style="display:none;">لا يمكن عرض الرسم البياني الآن.</div>
+                    <hr/>
+                    <div class="table-responsive">
+                      <table class="table table-sm align-middle" id="tblRepRefundRate">
+                        <thead>
+                          <tr>
+                            <th>الفرع</th>
+                            <th class="text-nowrap">Refund %</th>
+                            <th class="text-nowrap">فواتير</th>
+                            <th class="text-nowrap">مرتجعات</th>
+                          </tr>
+                        </thead>
+                        <tbody></tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-12 col-lg-6">
+                <div class="card h-100">
+                  <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <span class="fw-bold">Monthly comparison</span>
+                    <div class="d-flex gap-2">
+                      <button class="btn btn-outline-success btn-sm" data-dl="monthly">CSV</button>
+                      <button class="btn btn-outline-primary btn-sm" data-dl-xlsx="monthly">Excel</button>
+                    </div>
+                  </div>
+                  <div class="card-body">
+                    <canvas id="chartRepMonthly" height="160"></canvas>
+                    <div class="small text-secondary mt-2" id="chartRepMonthlyFallback" style="display:none;">لا يمكن عرض الرسم البياني الآن.</div>
+                    <div class="table-responsive mt-3">
+                      <table class="table table-sm align-middle" id="tblRepMonthly">
+                        <thead>
+                          <tr>
+                            <th>الشهر</th>
+                            <th class="text-nowrap">صافي</th>
+                            <th class="text-nowrap">فواتير</th>
+                            <th class="text-nowrap">مرتجعات</th>
+                          </tr>
+                        </thead>
+                        <tbody></tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-12 col-lg-6">
+                <div class="card h-100">
+                  <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <span class="fw-bold">Best salesperson per branch</span>
+                    <div class="d-flex gap-2">
+                      <button class="btn btn-outline-success btn-sm" data-dl="bestsales">CSV</button>
+                      <button class="btn btn-outline-primary btn-sm" data-dl-xlsx="bestsales">Excel</button>
+                    </div>
+                  </div>
+                  <div class="card-body">
+                    <div class="table-responsive">
+                      <table class="table table-sm align-middle" id="tblRepBestSalesByBranch">
+                        <thead>
+                          <tr>
+                            <th>الفرع</th>
+                            <th>الموظف</th>
+                            <th class="text-nowrap">صافي</th>
+                            <th class="text-nowrap">فواتير</th>
+                            <th class="text-nowrap">مرتجعات</th>
+                          </tr>
+                        </thead>
+                        <tbody></tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-12">
+                <div class="card">
+                  <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <span class="fw-bold">Alerts</span>
+                    <div class="d-flex gap-2">
+                      <button class="btn btn-outline-success btn-sm" data-dl="alerts">CSV</button>
+                      <button class="btn btn-outline-primary btn-sm" data-dl-xlsx="alerts">Excel</button>
+                    </div>
+                  </div>
+                  <div class="card-body">
+                    <div class="small text-secondary mb-2">نفس منطق التنبيهات الموجود في الداشبورد (داخل نفس الفلتر).</div>
+                    <div class="table-responsive">
+                      <table class="table table-sm align-middle" id="tblRepAlerts">
+                        <thead>
+                          <tr>
+                            <th>التاريخ</th>
+                            <th>النوع</th>
+                            <th class="text-nowrap">صافي</th>
+                            <th class="text-nowrap">فواتير</th>
+                            <th class="text-nowrap">مرتجعات</th>
+                            <th class="text-nowrap">Refund %</th>
+                            <th>ملاحظة</th>
+                          </tr>
+                        </thead>
+                        <tbody></tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- DATA -->
+  <section id="page-data" class="page d-none">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+      <div>
+        <h2 class="mb-1 fw-bold">💾 البيانات</h2>
+        <p class="text-secondary small mb-0">نسخ احتياطي / استعادة — وتنظيف البيانات.</p>
+      </div>
+    </div>
+
+    <div class="row g-3">
+      <div class="col-12 col-lg-6">
+        <div class="card">
+          <div class="card-header bg-white fw-bold">نسخ احتياطي</div>
+          <div class="card-body">
+            <p class="text-secondary small mb-2">ينزّل ملف JSON يحتوي على كل البيانات (Transactions + Branches).</p>
+            <button class="btn btn-success" id="btnExportBackup">تنزيل Backup (JSON)</button>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-lg-6">
+        <div class="card">
+          <div class="card-header bg-white fw-bold">استعادة Backup</div>
+          <div class="card-body">
+            <input type="file" id="backupInput" class="form-control" accept=".json">
+            <div class="form-text">سيتم دمج البيانات مع فحص التكرار.</div>
+            <button class="btn btn-primary mt-2" id="btnImportBackup">استعادة</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12">
+        <div class="card border-danger">
+          <div class="card-header bg-white fw-bold text-danger">🗑️ تنظيف كامل (حذف كل البيانات)</div>
+          <div class="card-body">
+            <p class="text-secondary small">سيحذف كل البيانات المحلية من هذا المتصفح.</p>
+            <button class="btn btn-outline-danger" id="btnWipeAll">حذف كل البيانات</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SETTINGS -->
+  <section id="page-settings" class="page d-none">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+      <div>
+        <h2 class="mb-1 fw-bold">⚙️ الإعدادات</h2>
+        <p class="text-secondary small mb-0">اختياري: تفعيل/تعطيل تسجيل الدخول المحلي.</p>
+      </div>
+    </div>
+
+    <div class="row g-3">
+      <div class="col-12 col-lg-6">
+        <div class="card">
+          <div class="card-header bg-white fw-bold">تسجيل الدخول (Local)</div>
+          <div class="card-body">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" role="switch" id="chkAuthEnabled">
+              <label class="form-check-label" for="chkAuthEnabled">تفعيل تسجيل الدخول</label>
+            </div>
+            <div class="small text-secondary mt-2">
+              * الأمان هنا محلي فقط (ليس بديلاً عن سيرفر). كلمة المرور تُخزَّن كـ Hash داخل المتصفح.
+            </div>
+            <hr/>
+            <button class="btn btn-outline-primary" id="btnResetAuth">إعادة ضبط المستخدم/كلمة المرور</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12 col-lg-6">
+        <div class="card">
+          <div class="card-header bg-white fw-bold">معلومات</div>
+          <div class="card-body small text-secondary">
+            <ul class="mb-0">
+              <li>قاعدة البيانات: IndexedDB داخل المتصفح.</li>
+              <li>قراءة Excel تحتاج مكتبة XLSX (SheetJS) من CDN. لو فتحت التطبيق بدون إنترنت، لن يعمل الاستيراد.</li>
+              <li>لأفضل تجربة: شغّل التطبيق من سيرفر محلي (مثال: python -m http.server).</li>
+              <li>التصدير إلى Excel (.xlsx) يعتمد أيضاً على مكتبة XLSX من CDN.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+</main>
+
+<!-- Login Modal -->
+<div class="modal fade" id="loginModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h1 class="modal-title fs-5">تسجيل الدخول</h1>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-info small">
+          إذا أول مرة: اكتب يوزر وباسورد وسيتم حفظهم محلياً (للاستخدام على نفس الجهاز/المتصفح).
+        </div>
+        <div class="mb-2">
+          <label class="form-label">اسم المستخدم</label>
+          <input type="text" class="form-control" id="loginUser" autocomplete="username">
+        </div>
+        <div class="mb-2">
+          <label class="form-label">كلمة المرور</label>
+          <input type="password" class="form-control" id="loginPass" autocomplete="current-password">
+        </div>
+        <div class="form-text">لو مش عاوز تسجيل دخول: من صفحة الإعدادات اقفل الخيار.</div>
+        <div id="loginMsg" class="small mt-2"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">إغلاق</button>
+        <button type="button" class="btn btn-primary" id="btnDoLogin">دخول</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Libraries (CDN) -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+<script src="js/app.js"></script>
+</body>
+</html>
