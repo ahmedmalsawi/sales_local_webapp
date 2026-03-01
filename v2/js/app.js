@@ -109,6 +109,17 @@
     downloadBlob(filename, new Blob([content], {type:mime}));
   }
 
+  function loadScript(src){
+    return new Promise((resolve, reject)=>{
+      if(document.querySelector(`script[src="${src}"]`)) return resolve();
+      const s = document.createElement('script');
+      s.src = src;
+      s.onload = resolve;
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+
   function toCSV(rows, headers){
     const esc = (v) => {
       if(v === null || v === undefined) return '';
@@ -467,7 +478,7 @@
     return t.businessDate || (t.createDate ? t.createDate.slice(0,10) : null);
   }
 
-  function filterTransactions(all, fromISO, toISO, branchId, docType, salesSet){
+  function filterTransactions(all, fromISO, toISO, branchId, docType, salesSet, invoiceStatus){
     return all.filter(t => {
       const d = txISODate(t);
       if(fromISO && d && d < fromISO) return false;
@@ -477,6 +488,10 @@
       if(salesSet && salesSet.size > 0){
         const s = t.sales || '(غير محدد)';
         if(!salesSet.has(s)) return false;
+      }
+      if(invoiceStatus && invoiceStatus !== 'all'){
+        const status = (t.status || '').toLowerCase();
+        if(status !== invoiceStatus.toLowerCase()) return false;
       }
       return true;
     });
@@ -754,6 +769,7 @@
 
   let chartDaily = null;
   let chartBranches = null;
+  let chartBranchesCircle = null;
   let chartMonthly = null;
   let chartRefundRate = null;
 
@@ -828,7 +844,8 @@
     fb.style.display = 'none';
 
     const labels = daily.map(x=>x.date);
-    const data = daily.map(x=>x.net);
+    const dataSales = daily.map(x=>x.invPaid);
+    const dataReturns = daily.map(x=>x.refPaid);
 
     if(chartDaily) chartDaily.destroy();
     chartDaily = new Chart(can, {
@@ -836,14 +853,26 @@
       data: {
         labels,
         datasets: [{
-          label: 'صافي المبيعات',
-          data,
+          label: 'المبيعات',
+          data: dataSales,
           borderColor: '#0f7aff',
           backgroundColor: 'rgba(15, 122, 255, 0.05)',
           fill: true,
           borderWidth: 2.5,
           pointRadius: 4,
           pointBackgroundColor: '#0f7aff',
+          pointBorderColor: '#fff',
+          pointBorderWidth: 2,
+          tension: 0.4
+        }, {
+          label: 'المرتجعات',
+          data: dataReturns,
+          borderColor: '#ef4444',
+          backgroundColor: 'rgba(239, 68, 68, 0.05)',
+          fill: true,
+          borderWidth: 2.5,
+          pointRadius: 4,
+          pointBackgroundColor: '#ef4444',
           pointBorderColor: '#fff',
           pointBorderWidth: 2,
           tension: 0.4
@@ -862,7 +891,8 @@
 
     const top = byBranch.slice(0,6);
     const labels = top.map(x=>`${x.branchId}-${x.branchName}`);
-    const data = top.map(x=>x.net);
+    const dataSales = top.map(x=>x.invoicesPaid);
+    const dataReturns = top.map(x=>x.refundsPaid);
 
     if(chartBranches) chartBranches.destroy();
     chartBranches = new Chart(can, {
@@ -870,16 +900,15 @@
       data: {
         labels,
         datasets: [{
-          label: 'صافي المبيعات',
-          data,
-          backgroundColor: [
-            'rgba(15, 122, 255, 0.8)',
-            'rgba(99, 102, 241, 0.8)',
-            'rgba(16, 185, 129, 0.8)',
-            'rgba(239, 68, 68, 0.8)',
-            'rgba(245, 158, 11, 0.8)',
-            'rgba(8, 145, 178, 0.8)'
-          ],
+          label: 'المبيعات',
+          data: dataSales,
+          backgroundColor: 'rgba(15, 122, 255, 0.8)',
+          borderRadius: 6,
+          borderSkipped: false
+        }, {
+          label: 'المرتجعات',
+          data: dataReturns,
+          backgroundColor: 'rgba(239, 68, 68, 0.8)',
           borderRadius: 6,
           borderSkipped: false
         }]
@@ -896,7 +925,8 @@
     fb.style.display = 'none';
 
     const labels = monthly.map(x=>x.month);
-    const data = monthly.map(x=>x.net);
+    const dataSales = monthly.map(x=>x.invPaid);
+    const dataReturns = monthly.map(x=>x.refPaid);
 
     if(chartMonthly) chartMonthly.destroy();
     chartMonthly = new Chart(can, {
@@ -904,9 +934,15 @@
       data: {
         labels,
         datasets: [{
-          label: 'صافي المبيعات',
-          data,
+          label: 'المبيعات',
+          data: dataSales,
           backgroundColor: 'rgba(15, 122, 255, 0.8)',
+          borderRadius: 6,
+          borderSkipped: false
+        }, {
+          label: 'المرتجعات',
+          data: dataReturns,
+          backgroundColor: 'rgba(239, 68, 68, 0.8)',
           borderRadius: 6,
           borderSkipped: false
         }]
@@ -952,6 +988,108 @@
           }
         }
       }
+    });
+  }
+
+  function renderBranchesCircleChart(byBranch){
+    const can = $('#chartBranchesCircle');
+    const fb = $('#chartBranchesCircleFallback');
+    if(!can || !fb) return;
+    if(!libsStatus().hasChart){ fb.style.display = ''; return; }
+    fb.style.display = 'none';
+
+    const top = byBranch.slice(0, 8);
+    const labels = top.map(x=>`${x.branchId}-${x.branchName}`);
+    const data = top.map(x=>x.net);
+
+    const colors = [
+      'rgba(15, 122, 255, 0.8)',
+      'rgba(99, 102, 241, 0.8)',
+      'rgba(16, 185, 129, 0.8)',
+      'rgba(239, 68, 68, 0.8)',
+      'rgba(245, 158, 11, 0.8)',
+      'rgba(8, 145, 178, 0.8)',
+      'rgba(139, 92, 246, 0.8)',
+      'rgba(236, 72, 153, 0.8)'
+    ];
+
+    if(chartBranchesCircle) chartBranchesCircle.destroy();
+    chartBranchesCircle = new Chart(can, {
+      type: 'doughnut',
+      data: {
+        labels,
+        datasets: [{
+          data,
+          backgroundColor: colors.slice(0, labels.length),
+          borderColor: '#fff',
+          borderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true,
+        animation: { duration: 400, easing: 'easeInOutQuart' },
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: { font: { size: 12, weight: '500' }, padding: 15 }
+          },
+          tooltip: {
+            backgroundColor: 'rgba(0,0,0,0.8)',
+            borderRadius: 8,
+            padding: 12,
+            titleFont: { size: 13, weight: 'bold' },
+            bodyFont: { size: 12 },
+            callbacks: {
+              label: (context) => `${fmtNumber(context.parsed)} ريال`
+            }
+          },
+          datalabels: {
+            color: '#fff',
+            font: { weight: 'bold', size: 11 },
+            formatter: (val, ctx) => {
+              const total = ctx.dataset.data.reduce((a,b)=>a+b, 0);
+              const pct = ((val / total) * 100).toFixed(0);
+              const label = labels[ctx.dataIndex].split('-')[1];
+              return `${label}\n${fmtNumber(val)} (${pct}%)`;
+            }
+          }
+        }
+      },
+      plugins: [{
+        id: 'textCenter',
+        beforeDatasetsDraw(chart){
+          // This plugin draws labels on the chart segments
+          const ctx = chart.ctx;
+          const chartArea = chart.chartArea;
+          const cx = (chartArea.left + chartArea.right) / 2;
+          const cy = (chartArea.top + chartArea.bottom) / 2;
+          const radius = Math.min(chartArea.right - chartArea.left, chartArea.bottom - chartArea.top) / 2;
+          
+          const meta = chart.getDatasetMeta(0);
+          const total = meta.data[0]?._chart?.data?.datasets?.[0]?.data?.reduce((a,b)=>a+b, 0) || 0;
+          
+          meta.data.forEach((element, index) => {
+            const value = element.$context.parsed;
+            const pct = total > 0 ? ((value / total) * 100).toFixed(0) : 0;
+            const label = labels[index].split('-')[1];
+            
+            const angle = (element.startAngle + element.endAngle) / 2;
+            const x = cx + Math.cos(angle - Math.PI / 2) * (radius * 0.65);
+            const y = cy + Math.sin(angle - Math.PI / 2) * (radius * 0.65);
+            
+            ctx.save();
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 11px sans-serif';
+            ctx.fillText(label, x, y - 8);
+            ctx.font = '10px sans-serif';
+            ctx.fillText(`${fmtNumber(value)}`, x, y + 2);
+            ctx.fillText(`(${pct}%)`, x, y + 12);
+            ctx.restore();
+          });
+        }
+      }]
     });
   }
 
@@ -1272,6 +1410,26 @@
 
     function setOpen(v){
       root.classList.toggle('open', v);
+      // if opening, pin the dropdown to viewport so scrolling doesn't hide it
+      const menu = root.querySelector('.msel-menu');
+      if(menu){
+        if(v){
+          const rect = root.getBoundingClientRect();
+          menu.style.position = 'fixed';
+          menu.style.top = (rect.bottom + 2) + 'px';
+          menu.style.left = rect.left + 'px';
+          menu.style.width = rect.width + 'px';
+          menu.style.maxHeight = '60vh';
+          menu.style.zIndex = 2000;
+        } else {
+          menu.style.position = '';
+          menu.style.top = '';
+          menu.style.left = '';
+          menu.style.width = '';
+          menu.style.maxHeight = '';
+          menu.style.zIndex = '';
+        }
+      }
     }
 
     function updateBtnLabel(){
@@ -1375,10 +1533,61 @@
   // ---------------------------
   // Page Actions
   // ---------------------------
+  function downloadCanvasAsPNG(canvas, filename){
+    try {
+      const link = document.createElement('a');
+      link.download = filename;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    } catch(e) {
+      console.error('Download failed', e);
+      showAlert('danger', 'فشل تحميل الصورة. قد يكون المتصفح يمنع ذلك.');
+    }
+  }
+
+  function injectChartDownloadButtons(){
+    // Find all canvases that don't have a download button yet
+    $$('canvas').forEach(can => {
+      const parent = can.parentElement;
+      if(!parent) return;
+      // Check if button already exists
+      if(parent.querySelector('.btn-chart-dl')) return;
+
+      // Make parent relative so we can position absolute
+      if(getComputedStyle(parent).position === 'static') parent.style.position = 'relative';
+
+      const btn = document.createElement('button');
+      btn.className = 'btn btn-sm btn-light btn-chart-dl';
+      btn.innerHTML = '📷';
+      btn.title = 'حفظ كصورة (PNG)';
+      btn.style.position = 'absolute';
+      btn.style.top = '10px';
+      btn.style.left = '10px'; // RTL friendly (top-left)
+      btn.style.zIndex = '10';
+      btn.style.opacity = '0.5';
+      btn.style.transition = 'opacity 0.2s';
+      btn.style.border = '1px solid #ccc';
+      
+      btn.addEventListener('mouseenter', ()=>btn.style.opacity='1');
+      btn.addEventListener('mouseleave', ()=>btn.style.opacity='0.5');
+      
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        const name = can.id || 'chart';
+        downloadCanvasAsPNG(can, name + '.png');
+      };
+      
+      parent.appendChild(btn);
+    });
+  }
+
   async function refreshBranchesUI(){
     const branches = await idbGetAll('branches');
     fillBranchSelect($('#dashBranch'), branches);
     fillBranchSelect($('#repBranch'), branches);
+    // also update analytics selector in case user has already visited analytics
+    const anal = $('#analBranch');
+    if(anal){ fillBranchSelect(anal, branches); }
   }
 
   function setDefaultDateRange(allTx){
@@ -1398,18 +1607,34 @@
     const fromISO = $('#dashFrom')?.value || null;
     const toISO = $('#dashTo')?.value || null;
     const branchId = $('#dashBranch')?.value || 'all';
+    const invoiceStatus = $('#dashStatus')?.value || 'all';
 
-    const list = filterTransactions(all, fromISO, toISO, branchId, 'all', null);
+    const list = filterTransactions(all, fromISO, toISO, branchId, 'all', null, invoiceStatus);
 
     const k = computeKPIs(list);
     renderDashCards(k);
 
     const byBranch = aggByBranch(list);
     renderBranchChart(byBranch);
+    renderBranchesCircleChart(byBranch);
     renderTopBranchesTable(byBranch);
 
-    const daily = aggDailyNet(list);
+    const daily = aggDailyDetails(list);
     renderDailyChart(daily);
+
+    // Move chartBranches under chartDaily if possible (Vertical Stacking)
+    const cDaily = $('#chartDaily');
+    const cBranch = $('#chartBranches');
+    if(cDaily && cBranch){
+      const pDaily = cDaily.closest('.col-12, .col-lg-6, .col-md-6, .col-sm-12');
+      const pBranch = cBranch.closest('.col-12, .col-lg-6, .col-md-6, .col-sm-12');
+      if(pDaily && pBranch && pDaily !== pBranch && pDaily.parentNode === pBranch.parentNode){
+         pDaily.parentNode.insertBefore(pBranch, pDaily.nextSibling);
+         // Force full width to ensure they stack vertically
+         pDaily.className = pDaily.className.replace(/col-(lg|md|sm)-6/g, 'col-$1-12').replace('col-lg-6', 'col-lg-12').replace('col-md-6', 'col-md-12');
+         pBranch.className = pBranch.className.replace(/col-(lg|md|sm)-6/g, 'col-$1-12').replace('col-lg-6', 'col-lg-12').replace('col-md-6', 'col-md-12');
+      }
+    }
 
     const monthly = aggMonthly(list);
     renderMonthlyChart(monthly);
@@ -1428,7 +1653,10 @@
     renderAlertsTable('#tblAlerts', alerts);
 
     // cache for dashboard exports
-    window.__latestDashboard = { list, k, byBranch, daily, monthly, refRate, topCustomers, bestSales, alerts, filters: {fromISO, toISO, branchId} };
+    window.__latestDashboard = { list, k, byBranch, daily, monthly, refRate, topCustomers, bestSales, alerts, filters: {fromISO, toISO, branchId, invoiceStatus} };
+    
+    // Add download buttons to charts (wait for animation)
+    setTimeout(injectChartDownloadButtons, 600);
   }
 
   function updateProgress(done, total){
@@ -1496,16 +1724,201 @@
     return libsStatus().hasXLSX;
   }
 
-  function downloadXLSX(filename, sheets){
+  /**
+   * If opts.images is provided, we try to use ExcelJS to embed them properly.
+   * Otherwise we fall back to SheetJS for data only.
+   */
+  async function downloadXLSX_ExcelJS(filename, sheets, images){
+    if(typeof ExcelJS === 'undefined'){
+      try {
+        showAlert('info', 'جاري تحميل مكتبة ExcelJS لتصدير الصور...', 2000);
+        await loadScript('https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js');
+      } catch(e){
+        throw new Error('Failed to load ExcelJS');
+      }
+    }
+    
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'Sales Local App';
+    workbook.created = new Date();
+
+    // 1. Data Sheets
+    for(const sh of sheets){
+      const safeName = (sh.name || 'Sheet').replace(/[\\/?*[\]]/g, '').slice(0, 31);
+      const ws = workbook.addWorksheet(safeName, { views: [{ rightToLeft: true }] });
+      
+      // Support multiple tables in one sheet or single list of rows
+      const tables = sh.tables || (sh.rows ? [{title: null, rows: sh.rows}] : []);
+
+      for(const tbl of tables){
+        if(!tbl.rows || !tbl.rows.length) continue;
+
+        // Add Section Title
+        if(tbl.title){
+          const titleRow = ws.addRow([tbl.title]);
+          titleRow.font = { bold: true, size: 14, color: { argb: 'FF1A3A52' } }; // Navy Blue
+          titleRow.height = 28;
+        }
+
+        // Get all unique keys
+        const keys = new Set();
+        tbl.rows.forEach(r => Object.keys(r).forEach(k => keys.add(k)));
+        const header = Array.from(keys);
+        
+        // Add Header Row
+        const headerRow = ws.addRow(header);
+        headerRow.height = 24;
+        headerRow.eachCell((cell) => {
+          cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F7AFF' } }; // Primary Blue
+          cell.alignment = { vertical: 'middle', horizontal: 'center' };
+          cell.border = { bottom: { style: 'medium', color: { argb: 'FF0056B3' } } };
+        });
+
+        // Add data rows
+        tbl.rows.forEach((r, idx) => {
+          const rowValues = header.map(k => {
+            const v = r[k];
+            return (v === null || v === undefined) ? '' : v;
+          });
+          const row = ws.addRow(rowValues);
+          
+          // Zebra striping (alternating colors)
+          const isEven = idx % 2 === 0;
+          
+          // Style data cells
+          row.eachCell((cell, colNumber) => {
+             cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: false };
+             cell.border = {
+               bottom: { style: 'thin', color: { argb: 'FFE0E0E0' } },
+               right: { style: 'thin', color: { argb: 'FFE0E0E0' } },
+               left: { style: 'thin', color: { argb: 'FFE0E0E0' } },
+               top: { style: 'thin', color: { argb: 'FFE0E0E0' } }
+             };
+             
+             if(isEven){
+               cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF9FAFB' } }; // Light Gray
+             }
+             
+             // Numeric formatting
+             const val = cell.value;
+             if(typeof val === 'number'){
+                // If it looks like a monetary value or has decimals
+                if(val % 1 !== 0 || Math.abs(val) > 1000) {
+                    cell.numFmt = '#,##0.00';
+                }
+             }
+          });
+        });
+
+        // Add spacing between tables
+        ws.addRow([]);
+        ws.addRow([]);
+      }
+
+      // Auto-width calculation
+      const maxCol = ws.columnCount;
+      for(let i=1; i<=maxCol; i++){
+          let maxLen = 10;
+          const col = ws.getColumn(i);
+          col.eachCell({ includeEmpty: false }, function(cell, rowNumber) {
+              if(rowNumber > 50) return; // Limit sampling for performance
+              const len = String(cell.value).length;
+              if(len > maxLen) maxLen = len;
+          });
+          col.width = Math.min(maxLen + 5, 50);
+      }
+    }
+
+    // 2. Images Sheet
+    if(images && images.length){
+      const ws = workbook.addWorksheet('الرسوم البيانية', { views: [{ rightToLeft: true, showGridLines: false }] });
+      let currentRow = 2;
+
+      // Title for the sheet
+      const mainTitle = ws.getRow(1);
+      mainTitle.getCell(1).value = 'الرسوم البيانية والتحليلات';
+      mainTitle.getCell(1).font = { bold: true, size: 18, color: { argb: 'FF0F7AFF' } };
+      currentRow += 2;
+
+      for(const imgObj of images){
+        const canvas = imgObj.canvas;
+        if(!canvas) continue;
+
+        // Chart Title
+        const titleRow = ws.getRow(currentRow);
+        titleRow.getCell(1).value = imgObj.name || 'Chart';
+        titleRow.getCell(1).font = { bold: true, size: 14, color: { argb: 'FF333333' } };
+        currentRow += 1;
+
+        // Image
+        const dataUrl = canvas.toDataURL('image/png');
+        const base64 = dataUrl.split(',')[1]; // Strip data:image/png;base64, prefix
+        
+        const imageId = workbook.addImage({
+          base64: base64,
+          extension: 'png',
+        });
+
+        // Scale
+        const targetWidth = 600;
+        const ratio = canvas.height / canvas.width;
+        const targetHeight = targetWidth * ratio;
+
+        ws.addImage(imageId, {
+          tl: { col: 0, row: currentRow - 1 },
+          ext: { width: targetWidth, height: targetHeight }
+        });
+
+        const rowsCovered = Math.ceil(targetHeight / 20);
+        currentRow += rowsCovered + 3;
+      }
+      
+      ws.getColumn(1).width = 80;
+    }
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    downloadBlob(filename, new Blob([buffer], {type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+  }
+
+  /**
+   * downloadXLSX
+   * @param {string} filename
+   * @param {Array<{name?:string,rows:Array}>} sheets
+   * @param {Object} [opts]
+   * @param {Array<{name:string,canvas?:HTMLCanvasElement,dataURL?:string}>} [opts.images]
+   */
+  async function downloadXLSX(filename, sheets, opts={}){
+    // Try ExcelJS if images are present OR if we have complex tables structure
+    const hasTables = sheets.some(s => s.tables);
+
+    if((opts.images && opts.images.length) || hasTables){
+      try {
+        await downloadXLSX_ExcelJS(filename, sheets, opts.images);
+        return;
+      } catch(e) {
+        console.error('ExcelJS export failed', e);
+        showAlert('warning', 'فشل تصدير الصور (ExcelJS). سيتم تصدير البيانات فقط.');
+      }
+    }
+
     if(!canExportXLSX()){
       showAlert('warning', 'تصدير Excel يحتاج مكتبة XLSX (تأكد من الإنترنت).');
       return;
     }
     const wb = XLSX.utils.book_new();
     for(const sh of sheets){
-      const rows = sh.rows || [];
-      const ws = XLSX.utils.json_to_sheet(rows);
-      XLSX.utils.book_append_sheet(wb, ws, (sh.name || 'Sheet1').slice(0, 31));
+      if(sh.tables){
+        // Fallback: create separate sheets for tables if ExcelJS fails
+        for(const t of sh.tables){
+           const ws = XLSX.utils.json_to_sheet(t.rows);
+           XLSX.utils.book_append_sheet(wb, ws, (t.title || 'Table').slice(0, 31));
+        }
+      } else {
+        const rows = sh.rows || [];
+        const ws = XLSX.utils.json_to_sheet(rows);
+        XLSX.utils.book_append_sheet(wb, ws, (sh.name || 'Sheet1').slice(0, 31));
+      }
     }
     XLSX.writeFile(wb, filename);
   }
@@ -1544,7 +1957,61 @@
     downloadText('dashboard_summary.csv', csv, 'text/csv;charset=utf-8');
   }
 
-  async function downloadDashXLSX(){
+  function showExportDialog(){
+    // Check if modal already exists
+    let modal = document.getElementById('exportModal');
+    if(!modal){
+      modal = document.createElement('div');
+      modal.id = 'exportModal';
+      modal.className = 'modal fade';
+      modal.innerHTML = `
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">تخصيص تصدير Excel</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <div class="form-check"><input class="form-check-input" type="checkbox" value="summary" checked id="exp_summary"><label class="form-check-label" for="exp_summary">ملخص الأداء (Summary)</label></div>
+              <div class="form-check"><input class="form-check-input" type="checkbox" value="topBranches" checked id="exp_topBranches"><label class="form-check-label" for="exp_topBranches">أفضل الفروع (Top Branches)</label></div>
+              <div class="form-check"><input class="form-check-input" type="checkbox" value="monthly" checked id="exp_monthly"><label class="form-check-label" for="exp_monthly">الأداء الشهري (Monthly)</label></div>
+              <div class="form-check"><input class="form-check-input" type="checkbox" value="bestSales" checked id="exp_bestSales"><label class="form-check-label" for="exp_bestSales">أفضل المبيعات (Best Sales)</label></div>
+              <div class="form-check"><input class="form-check-input" type="checkbox" value="refundRate" checked id="exp_refundRate"><label class="form-check-label" for="exp_refundRate">معدل المرتجعات (Refund Rate)</label></div>
+              <div class="form-check"><input class="form-check-input" type="checkbox" value="topCustomers" checked id="exp_topCustomers"><label class="form-check-label" for="exp_topCustomers">أفضل العملاء (Top Customers)</label></div>
+              <div class="form-check"><input class="form-check-input" type="checkbox" value="alerts" checked id="exp_alerts"><label class="form-check-label" for="exp_alerts">التنبيهات (Alerts)</label></div>
+              <hr>
+              <div class="form-check"><input class="form-check-input" type="checkbox" value="charts" checked id="exp_charts"><label class="form-check-label" for="exp_charts">تضمين الرسوم البيانية (Charts)</label></div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+              <button type="button" class="btn btn-primary" id="btnDoExport">تصدير</button>
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+      
+      modal.querySelector('#btnDoExport').onclick = () => {
+        const options = {
+          summary: $('#exp_summary').checked,
+          topBranches: $('#exp_topBranches').checked,
+          monthly: $('#exp_monthly').checked,
+          bestSales: $('#exp_bestSales').checked,
+          refundRate: $('#exp_refundRate').checked,
+          topCustomers: $('#exp_topCustomers').checked,
+          alerts: $('#exp_alerts').checked,
+          charts: $('#exp_charts').checked
+        };
+        const bsModal = bootstrap.Modal.getInstance(modal);
+        bsModal.hide();
+        downloadDashXLSX(options);
+      };
+    }
+    const bsModal = new bootstrap.Modal(modal);
+    bsModal.show();
+  }
+
+  async function downloadDashXLSX(options){
     const snap = window.__latestDashboard;
     if(!snap){
       await refreshDashboard();
@@ -1554,6 +2021,9 @@
       showAlert('warning', 'لا يوجد بيانات لتصديرها.');
       return;
     }
+
+    // Default options if not provided
+    if(!options) options = { summary:true, topBranches:true, monthly:true, bestSales:true, refundRate:true, topCustomers:true, alerts:true, charts:true };
 
     const summary = [{
       from: d.filters?.fromISO || '',
@@ -1614,15 +2084,117 @@
       note: a.note
     }));
 
-    downloadXLSX('dashboard.xlsx', [
-      {name:'Summary', rows: summary},
-      {name:'TopBranches', rows: topBranches},
-      {name:'Monthly', rows: monthly},
-      {name:'RefundRate', rows: refundRate},
-      {name:'TopCustomers', rows: topCustomers},
-      {name:'BestSales', rows: bestSales},
-      {name:'Alerts', rows: alerts},
-    ]);
+    // collect any visible chart canvases on dashboard so they can be included
+    const chartIds = ['chartDaily','chartBranches','chartMonthly','chartBranchesCircle','chartRefundRate'];
+    const chartImages = options.charts ? chartIds.map(id=>({id, el: document.getElementById(id)})).filter(x=>x.el).map(x=>({name:x.id,canvas:x.el})) : [];
+    
+    // Merge main data into one sheet
+    const dashboardTables = [];
+    if(options.summary) dashboardTables.push({ title: '📊 ملخص الأداء (Summary)', rows: summary });
+    if(options.topBranches) dashboardTables.push({ title: '🏆 أفضل الفروع (Top Branches)', rows: topBranches });
+    if(options.monthly) dashboardTables.push({ title: '📅 الأداء الشهري (Monthly)', rows: monthly });
+    if(options.bestSales) dashboardTables.push({ title: '🌟 أفضل المبيعات (Best Sales)', rows: bestSales });
+
+    const sheets = [];
+    if(dashboardTables.length) sheets.push({name:'Dashboard', tables: dashboardTables});
+    if(options.refundRate) sheets.push({name:'RefundRate', rows: refundRate});
+    if(options.topCustomers) sheets.push({name:'TopCustomers', rows: topCustomers});
+    if(options.alerts) sheets.push({name:'Alerts', rows: alerts});
+
+    await downloadXLSX('dashboard.xlsx', sheets, {images: chartImages});
+  }
+
+  function printPage(pageType){
+    // converting canvas charts to images before copying is necessary because
+    // serializing a canvas element via innerHTML will not preserve its drawn
+    // content. this helper clones the page section, replaces each canvas with
+    // a data-url image, and then writes the resulting markup to the popup.
+
+    const printWindow = window.open('', '_blank');
+    if(!printWindow){
+      showAlert('danger', 'تم حظر فتح نافذة جديدة. يرجى السماح بالنوافذ المنبثقة.');
+      return;
+    }
+
+    const pageElOrig = pageType === 'dashboard' ? $('#page-dashboard') : $('#page-reports');
+    if(!pageElOrig){
+      showAlert('danger', 'الصفحة غير موجودة.');
+      return;
+    }
+
+    // clone so we don't disturb the live DOM
+    const clone = pageElOrig.cloneNode(true);
+    // we need the drawn content from the original canvases, not the empty clones
+    const origCanvases = pageElOrig.querySelectorAll('canvas');
+    const cloneCanvases = clone.querySelectorAll('canvas');
+    cloneCanvases.forEach((copy, idx) => {
+      const original = origCanvases[idx];
+      if(!original) return;
+      try {
+        const img = document.createElement('img');
+        img.src = original.toDataURL('image/png');
+        img.style.maxWidth = '100%';
+        img.style.height = 'auto';
+        copy.parentNode.replaceChild(img, copy);
+      } catch (e) {
+        // if toDataURL fails (e.g. canvas tainted) just leave the canvas copy
+      }
+    });
+
+    const html = `
+      <!DOCTYPE html>
+      <html lang="ar" dir="rtl">
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>${pageType === 'dashboard' ? 'الداشبورد' : 'التقارير'} - لوحة مبيعات</title>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.rtl.min.css">
+        <link rel="stylesheet" href="css/styles.css">
+        <style>
+          body { background: white !important; margin: 0 !important; padding: 15mm !important; font-size: 11pt !important; font-family: Arial, sans-serif !important; }
+          .navbar { display: none !important; }
+          .d-flex.flex-wrap.justify-content-between { display: none !important; }
+          [id*="Fallback"] { display: none !important; }
+          .container-fluid { max-width: 100% !important; margin: 0 !important; padding: 0 !important; }
+          .card { page-break-inside: avoid !important; border: 1px solid #999 !important; margin: 0 0 20mm 0 !important; padding: 10mm !important; box-shadow: none !important; }
+          .card:last-child { page-break-after: auto !important; }
+          .card-header { background: #e8e4dc !important; padding: 8mm 10mm !important; font-weight: bold !important; font-size: 13pt !important; border-bottom: 2px solid #333 !important; margin: 0 !important; }
+          .card-body { padding: 10mm !important; margin: 0 !important; }
+          table { font-size: 9pt !important; margin: 10mm 0 !important; width: 100% !important; }
+          thead { background: #d4c5b3 !important; color: #000 !important; }
+          thead th { background: #d4c5b3 !important; color: #000 !important; padding: 6mm !important; font-weight: bold !important; }
+          tbody tr { border-bottom: 1px solid #ddd !important; }
+          tbody tr:nth-child(even) { background: #f9f7f4 !important; }
+          tbody td { padding: 4mm 6mm !important; }
+          canvas, img { max-width: 100% !important; height: auto !important; margin: 10mm 0 !important; }
+          h2 { margin: 20mm 0 10mm 0 !important; font-size: 16pt !important; color: #1a3a52 !important; page-break-after: avoid !important; font-weight: bold !important; }
+          h3 { margin: 15mm 0 8mm 0 !important; font-size: 14pt !important; color: #1a3a52 !important; page-break-after: avoid !important; font-weight: bold !important; }
+          .row { margin: 0 !important; page-break-inside: avoid !important; }
+          .col-12, .col-lg-7, .col-lg-5, .col-lg-6 { width: 100% !important; margin: 0 !important; padding: 0 !important; }
+          hr { display: none !important; }
+          .text-secondary, .text-muted { display: none !important; }
+          .kpi-card { page-break-inside: avoid !important; margin: 8mm 0 !important; padding: 8mm !important; border: 1px solid #ccc !important; }
+          .table-responsive { page-break-inside: avoid !important; }
+        </style>
+      </head>
+      <body>
+        <div class="container-fluid py-3">
+          <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #0f7aff; padding-bottom: 15px;">
+            <h1 style="margin: 0; color: #0f7aff; font-size: 28pt;">📊 لوحة مبيعات محلية</h1>
+            <p style="margin: 5px 0; color: #6c757d; font-size: 12pt;">${pageType === 'dashboard' ? 'الداشبورد' : 'التقارير'}</p>
+            <p style="margin: 5px 0; color: #999; font-size: 10pt;">تاريخ الطباعة: ${new Date().toLocaleDateString('ar-SA')} ${new Date().toLocaleTimeString('ar-SA')}</p>
+          </div>
+          ${clone.innerHTML}
+        </div>
+        <script>
+          window.addEventListener('load', ()=>{ setTimeout(()=>window.print(), 800); });
+        </script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(html);
+    printWindow.document.close();
   }
 
   function downloadReport(kind){
@@ -1707,7 +2279,7 @@
     downloadText(`report_${kind}.csv`, csv, 'text/csv;charset=utf-8');
   }
 
-  function downloadReportXlsx(kind){
+  async function downloadReportXlsx(kind){
     const r = window.__latestReports;
     if(!r){ showAlert('warning','اعمل "عرض" في التقارير الأول.'); return; }
 
@@ -1787,7 +2359,12 @@
       }
     })();
 
-    downloadXLSX(`report_${kind}.xlsx`, [{name: kind, rows}]);
+    // attempt to include the current reports page charts if they exist
+    const rptCharts = ['chartByBranch','chartBySalesperson','chartTransactions'] // example ids
+      .map(id=>document.getElementById(id))
+      .filter(c=>c)
+      .map(c=>({name:id,canvas:c}));
+    await downloadXLSX(`report_${kind}.xlsx`, [{name: kind, rows}], {images: rptCharts});
   }
 
   // ---------------------------
@@ -1836,14 +2413,15 @@
     const toISO = $('#repTo')?.value || null;
     const branchId = $('#repBranch')?.value || 'all';
     const docType = $('#repType')?.value || 'all';
-    return { fromISO, toISO, branchId, docType };
+    const invoiceStatus = $('#repStatus')?.value || 'all';
+    return { fromISO, toISO, branchId, docType, invoiceStatus };
   }
 
   async function refreshSalesOptionsForReports(){
     if(!repSalesMS) return;
     const all = await idbGetAll('transactions');
-    const {fromISO, toISO, branchId, docType} = getReportsBaseFilters();
-    const base = filterTransactions(all, fromISO, toISO, branchId, docType, null);
+    const {fromISO, toISO, branchId, docType, invoiceStatus} = getReportsBaseFilters();
+    const base = filterTransactions(all, fromISO, toISO, branchId, docType, null, invoiceStatus);
     const uniqueSales = Array.from(new Set(base.map(t => t.sales || '(غير محدد)')));
     uniqueSales.sort((a,b)=>a.localeCompare(b));
     repSalesMS.setOptions(uniqueSales);
@@ -1852,10 +2430,10 @@
   async function runReports(){
     const all = await idbGetAll('transactions');
 
-    const {fromISO, toISO, branchId, docType} = getReportsBaseFilters();
+    const {fromISO, toISO, branchId, docType, invoiceStatus} = getReportsBaseFilters();
 
     // base (without employee filter) -> to populate options
-    const base = filterTransactions(all, fromISO, toISO, branchId, docType, null);
+    const base = filterTransactions(all, fromISO, toISO, branchId, docType, null, invoiceStatus);
     if(repSalesMS){
       const uniqueSales = Array.from(new Set(base.map(t => t.sales || '(غير محدد)')));
       uniqueSales.sort((a,b)=>a.localeCompare(b));
@@ -1865,7 +2443,7 @@
 
     // apply employee filter
     const salesSet = repSalesMS ? repSalesMS.getSelectedSet() : null;
-    const list = filterTransactions(all, fromISO, toISO, branchId, docType, (salesSet && salesSet.size>0) ? salesSet : null);
+    const list = filterTransactions(all, fromISO, toISO, branchId, docType, (salesSet && salesSet.size>0) ? salesSet : null, invoiceStatus);
 
     const byBranch = aggByBranch(list);
     const bySales = aggBySalesperson(list);
@@ -1903,6 +2481,9 @@
 
     // store latest datasets for download buttons
     window.__latestReports = { list, byBranch, bySales, filtered, topCustomers, refRate, monthly, bestSales, alerts, filters: {fromISO, toISO, branchId, docType, sales: salesSet ? Array.from(salesSet) : []} };
+    
+    // Add download buttons to charts
+    setTimeout(injectChartDownloadButtons, 600);
   }
 
   // ---------------------------
@@ -1939,6 +2520,166 @@
   }
 
   // ---------------------------
+  // Analytics Module
+  // ---------------------------
+  function getAnalyticsFilters(){
+    const fromISO = $('#analFrom')?.value || null;
+    const toISO = $('#analTo')?.value || null;
+    const branchId = $('#analBranch')?.value || 'all';
+    return { fromISO, toISO, branchId };
+  }
+
+  async function refreshAnalytics(){
+    const all = await idbGetAll('transactions');
+    setDefaultDateRange(all);
+    const {fromISO, toISO, branchId} = getAnalyticsFilters();
+    const list = filterTransactions(all, fromISO, toISO, branchId, 'all', null, 'all');
+    
+    const enabledReports = Array.from($$('.analytics-toggle:checked')).map(el => el.value);
+    let html = '';
+
+    // Sales Performance Reports
+    if(enabledReports.includes('sales-perf')){
+      const byBranch = aggByBranch(list);
+      html += `<div class="card mb-4"><div class="card-header bg-white fw-bold">📈 Trend يومي/أسبوعي/شهري</div><div class="card-body"><div class="alert alert-info small">يعرض اتجاه المبيعات الصافية عبر الفترة المحددة</div><div class="row g-3"><div class="col-12 col-lg-6"><canvas id="chartTrendDaily" height="200"></canvas></div><div class="col-12 col-lg-6"><canvas id="chartTrendMonthly" height="200"></canvas></div></div></div></div>`;
+    }
+
+    // Top/Bottom Branches
+    if(enabledReports.includes('top-bottom')){
+      const byBranch = aggByBranch(list);
+      const top5 = byBranch.slice(0, 5);
+      const bottom5 = byBranch.slice(-5).reverse();
+      let tableHtml = '<table class="table table-sm"><thead><tr><th>الفرع</th><th>صافي</th><th>فواتير</th><th>نسبة مرتجعات</th></tr></thead><tbody>';
+      top5.forEach(b => {
+        const refRate = b.invoicesCount > 0 ? ((b.refundCount / b.invoicesCount) * 100).toFixed(1) : 0;
+        tableHtml += `<tr><td><strong>${b.branchName}</strong></td><td>${fmtNumber(b.net)}</td><td>${b.invoicesCount}</td><td>${refRate}%</td></tr>`;
+      });
+      tableHtml += '</tbody></table>';
+      html += `<div class="card mb-4"><div class="card-header bg-white fw-bold">🏆 أفضل 5 فروع</div><div class="card-body">${tableHtml}</div></div>`;
+    }
+
+    // Sales Mix
+    if(enabledReports.includes('sales-mix')){
+      const byBranch = aggByBranch(list);
+      const total = byBranch.reduce((s,b) => s + b.net, 0);
+      let tableHtml = '<table class="table table-sm"><thead><tr><th>الفرع</th><th>المبيعات</th><th>النسبة %</th></tr></thead><tbody>';
+      byBranch.forEach(b => {
+        const pct = total > 0 ? ((b.net / total) * 100).toFixed(1) : 0;
+        tableHtml += `<tr><td>${b.branchName}</td><td>${fmtNumber(b.net)}</td><td><div class="progress"><div class="progress-bar" style="width:${pct}%">${pct}%</div></div></td></tr>`;
+      });
+      tableHtml += '</tbody></table>';
+      html += `<div class="card mb-4"><div class="card-header bg-white fw-bold">📊 توزيع المبيعات</div><div class="card-body">${tableHtml}</div></div>`;
+    }
+
+    // Refund Analytics
+    if(enabledReports.includes('refund-trend')){
+      const refRate = aggRefundRateByBranch(list);
+      const avgRate = refRate.length > 0 ? refRate.reduce((s,r) => s + (r.refundRate || 0), 0) / refRate.length : 0;
+      html += `<div class="card mb-4"><div class="card-header bg-white fw-bold">🔄 نسبة المرتجعات</div><div class="card-body"><div class="alert alert-info">متوسط نسبة المرتجعات: <strong>${(avgRate * 100).toFixed(2)}%</strong></div><canvas id="chartRefundAnalytics" height="150"></canvas></div></div>`;
+    }
+
+    // Customer RFM
+    if(enabledReports.includes('customer-rfm')){
+      const customers = {};
+      list.forEach(t => {
+        if(!customers[t.customer]) {
+          customers[t.customer] = { recency: null, frequency: 0, monetary: 0, lastDate: null };
+        }
+        customers[t.customer].frequency++;
+        customers[t.customer].monetary += Number(t.paidAmount || 0);
+        const tDate = txISODate(t);
+        if(!customers[t.customer].lastDate || tDate > customers[t.customer].lastDate) {
+          customers[t.customer].lastDate = tDate;
+        }
+      });
+      const now = new Date();
+      const rfmList = Object.entries(customers).map(([name, data]) => ({
+        name,
+        recency: data.lastDate ? Math.floor((now - new Date(data.lastDate)) / (1000*60*60*24)) : 999,
+        frequency: data.frequency,
+        monetary: data.monetary
+      })).sort((a,b) => b.monetary - a.monetary).slice(0, 15);
+      
+      let tableHtml = '<table class="table table-sm"><thead><tr><th>العميل</th><th>آخر شراء (يوم)</th><th>عدد عمليات</th><th>إجمالي المدفوع</th></tr></thead><tbody>';
+      rfmList.forEach(r => {
+        tableHtml += `<tr><td>${r.name}</td><td>${r.recency} يوم</td><td>${r.frequency}</td><td>${fmtNumber(r.monetary)}</td></tr>`;
+      });
+      tableHtml += '</tbody></table>';
+      html += `<div class="card mb-4"><div class="card-header bg-white fw-bold">👥 تحليل العملاء (RFM)</div><div class="card-body">${tableHtml}</div></div>`;
+    }
+
+    // New vs Returning Customers
+    if(enabledReports.includes('new-returning')){
+      const customerFirstDate = {};
+      list.forEach(t => {
+        if(!customerFirstDate[t.customer]) {
+          customerFirstDate[t.customer] = txISODate(t);
+        } else {
+          const tDate = txISODate(t);
+          if(tDate < customerFirstDate[t.customer]) {
+            customerFirstDate[t.customer] = tDate;
+          }
+        }
+      });
+      const periodStart = fromISO || Object.values(customerFirstDate).sort()[0];
+      const newCount = Object.values(customerFirstDate).filter(d => d >= periodStart).length;
+      const returningCount = Object.values(customerFirstDate).filter(d => d < periodStart).length;
+      html += `<div class="card mb-4"><div class="card-header bg-white fw-bold">🆕 عملاء جدد مقابل متكررين</div><div class="card-body"><div class="row g-3 text-center"><div class="col-6"><h4 class="text-success">${newCount}</h4><p class="small text-muted">عملاء جدد</p></div><div class="col-6"><h4 class="text-info">${returningCount}</h4><p class="small text-muted">عملاء متكررين</p></div></div></div></div>`;
+    }
+
+    // Pareto 80/20
+    if(enabledReports.includes('pareto')){
+      const customerSales = {};
+      list.forEach(t => {
+        if(!customerSales[t.customer]) customerSales[t.customer] = 0;
+        customerSales[t.customer] += Number(t.paidAmount || 0);
+      });
+      const sorted = Object.entries(customerSales).map(([name, sales]) => ({name, sales})).sort((a,b) => b.sales - a.sales);
+      const total = sorted.reduce((s,c) => s + c.sales, 0);
+      let cumulative = 0;
+      const top20 = [];
+      for(let c of sorted){
+        cumulative += c.sales;
+        top20.push(c);
+        if(cumulative >= total * 0.8) break;
+      }
+      const pct = ((top20.reduce((s,c) => s + c.sales, 0) / total) * 100).toFixed(1);
+      html += `<div class="card mb-4"><div class="card-header bg-white fw-bold">📈 Pareto 80/20</div><div class="card-body"><div class="alert alert-warning">أعلى ${top20.length} عميل يمثلون <strong>${pct}%</strong> من إجمالي المبيعات</div></div></div>`;
+    }
+
+    // Data Quality
+    if(enabledReports.includes('data-quality')){
+      const duplicates = new Set();
+      const seen = new Set();
+      let missingData = 0;
+      list.forEach(t => {
+        const key = `${t.docNo}-${t.branchId}`;
+        if(seen.has(key)) duplicates.add(key);
+        seen.add(key);
+        if(!t.customer || !t.branchId || !t.paidAmount) missingData++;
+      });
+      html += `<div class="card mb-4"><div class="card-header bg-white fw-bold">⚙️ جودة البيانات</div><div class="card-body"><div class="row g-3"><div class="col-6"><h5>${duplicates.size}</h5><p class="small text-muted">عمليات مكررة محتملة</p></div><div class="col-6"><h5>${missingData}</h5><p class="small text-muted">صفوف ناقصة بيانات</p></div></div></div></div>`;
+    }
+
+    // Discount Impact
+    if(enabledReports.includes('discount-impact')){
+      const totalDiscount = list.reduce((s,t) => s + (Number(t.discount || 0)), 0);
+      const totalGross = list.reduce((s,t) => s + (Number(t.amount || 0)), 0);
+      const discountRate = totalGross > 0 ? ((totalDiscount / totalGross) * 100).toFixed(2) : 0;
+      html += `<div class="card mb-4"><div class="card-header bg-white fw-bold">💰 تأثير الخصومات</div><div class="card-body"><div class="row g-3"><div class="col-6"><h5>${fmtNumber(totalDiscount)}</h5><p class="small text-muted">إجمالي الخصومات</p></div><div class="col-6"><h5>${discountRate}%</h5><p class="small text-muted">نسبة من الإجمالي</p></div></div></div></div>`;
+    }
+
+    // Average Ticket Size
+    if(enabledReports.includes('avg-ticket')){
+      const invoices = list.filter(t => t.docType === 'invoice');
+      const avgTicket = invoices.length > 0 ? invoices.reduce((s,t) => s + Number(t.paidAmount || 0), 0) / invoices.length : 0;
+      html += `<div class="card mb-4"><div class="card-header bg-white fw-bold">🎫 متوسط حجم الفاتورة</div><div class="card-body"><div class="alert alert-info"><strong>${fmtNumber(avgTicket)}</strong> ريال (متوسط الفاتورة الواحدة)</div></div></div>`;
+    }
+
+    $('#analyticsContent').innerHTML = html;
+  }
+
+  // ---------------------------
   // Boot
   // ---------------------------
   async function boot(){
@@ -1959,6 +2700,28 @@
         if(page === 'reports'){
           refreshSalesOptionsForReports();
         }
+        if(page === 'analytics'){
+          // Branches may not be in a global variable; fetch from IndexedDB each time
+          idbGetAll('branches').then(bs => fillBranchSelect($('#analBranch'), bs));
+          idbGetAll('transactions').then(all => setDefaultDateRange(all));
+        }
+        if(page === 'settings'){
+          // when settings is shown we also want to update the data-summary
+          updateDataSection();
+        }
+      });
+    });
+
+    // analytics actions
+    $('#btnRefreshAnalytics')?.addEventListener('click', ()=>{
+      if(!enforceAuth()) return;
+      refreshAnalytics();
+    });
+
+    ['analFrom','analTo','analBranch'].forEach(id=>{
+      $('#'+id)?.addEventListener('change', ()=>{
+        if($('#analyticsContent').innerHTML.includes('تحميل التحليلات')) return;
+        refreshAnalytics();
       });
     });
 
@@ -2060,13 +2823,17 @@
       if(!enforceAuth()) return;
       refreshDashboard();
     });
+    $('#btnPrintDash')?.addEventListener('click', ()=>{
+      if(!enforceAuth()) return;
+      printPage('dashboard');
+    });
     $('#btnDownloadDash')?.addEventListener('click', ()=>{
       if(!enforceAuth()) return;
       downloadDashCSV();
     });
     $('#btnDownloadDashXlsx')?.addEventListener('click', ()=>{
       if(!enforceAuth()) return;
-      downloadDashXLSX();
+      showExportDialog();
     });
 
     // reports actions
@@ -2075,13 +2842,18 @@
       runReports();
     });
 
+    $('#btnPrintReports')?.addEventListener('click', ()=>{
+      if(!enforceAuth()) return;
+      printPage('reports');
+    });
+
     $('#txtSearchTx')?.addEventListener('input', ()=>{
       if(!enforceAuth()) return;
       runReports();
     });
 
     // extra: refresh employee options when filters change
-    ['repFrom','repTo','repBranch','repType'].forEach(id=>{
+    ['repFrom','repTo','repBranch','repType','repStatus'].forEach(id=>{
       $('#'+id)?.addEventListener('change', ()=>{
         refreshSalesOptionsForReports();
       });
@@ -2117,13 +2889,16 @@
     });
 
     // wipe all
-    $('#btnWipeAll')?.addEventListener('click', async ()=>{
+    // compatibility: old button id used to be btnWipeAll, new id is btnClearAllData
+    const clearBtn = $('#btnClearAllData') || $('#btnWipeAll');
+    clearBtn?.addEventListener('click', async ()=>{
       if(!enforceAuth()) return;
       if(!confirm('تأكيد: حذف كل البيانات المحلية؟')) return;
       await wipeAll();
       showAlert('success','تم حذف البيانات.');
       await refreshBranchesUI();
       await refreshDashboard();
+      await updateDataSection();
     });
 
     // init
@@ -2154,5 +2929,84 @@
       showAlert('danger','تعذر تشغيل التطبيق: ' + (err.message||err), 10000);
     });
   });
+
+// ---------------------------
+// Data section helpers (inside IIFE to access idbGetAll)
+// ---------------------------
+// populate statistics and branch list inside settings (merged data page)
+async function updateDataSection(){
+  const all = await idbGetAll('transactions');
+  
+  // Storage Size
+  if(navigator.storage && navigator.storage.estimate){
+    try {
+      const est = await navigator.storage.estimate();
+      const mb = (est.usage / (1024*1024)).toFixed(2);
+      const el = $('#statStorage');
+      if(el) el.textContent = mb + ' MB';
+    } catch(e){ console.error(e); }
+  }
+
+  // simple counts
+  $('#statTransactions').textContent = all.length;
+  $('#statBranches').textContent = new Set(all.map(t=>t.branchId)).size;
+  $('#statSales').textContent = new Set(all.map(t=>t.sales||'(غير محدد)')).size;
+  $('#statCustomers').textContent = new Set(all.map(t=>t.customer||'(غير محدد)')).size;
+  const elTx = $('#statTransactions'); if(elTx) elTx.textContent = all.length;
+  const elBr = $('#statBranches'); if(elBr) elBr.textContent = new Set(all.map(t=>t.branchId)).size;
+  const elSa = $('#statSales'); if(elSa) elSa.textContent = new Set(all.map(t=>t.sales||'(غير محدد)')).size;
+  const elCu = $('#statCustomers'); if(elCu) elCu.textContent = new Set(all.map(t=>t.customer||'(غير محدد)')).size;
+
+  // branch summary table
+  const tbody = $('#tblAllBranches tbody');
+  if(tbody){
+    tbody.innerHTML = '';
+    const agg = {};
+    all.forEach(t=>{
+      const id = t.branchId || '(غير محدد)';
+      const name = t.branchName || id;
+      if(!agg[id]) agg[id] = {name, count:0, net:0};
+      agg[id].count++;
+      agg[id].net += Number(t.net) || 0;
+      agg[id].net += netValue(t);
+    });
+    Object.values(agg).forEach(b=>{
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${b.name}</td><td>${b.count}</td><td>${fmtNumber(b.net)}</td>`;
+      tbody.appendChild(tr);
+    });
+  }
+
+  // Inject Developer Info if not present
+  const settingsPage = $('#page-settings');
+  if(settingsPage && !document.getElementById('devInfoCard')){
+    const div = document.createElement('div');
+    div.id = 'devInfoCard';
+    div.className = 'card mt-4 mb-4 fade-in-up';
+    div.innerHTML = `
+      <div class="card-header bg-white fw-bold">ℹ️ عن النظام والمطور</div>
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <h6 class="text-primary mb-3">معلومات المطور</h6>
+            <p class="mb-2"><strong>تطوير:</strong> Ahmed Elsawi</p>
+            <p class="mb-2"><strong>الدعم الفني:</strong> ahmedmalsawi@gmail.com</p>
+          </div>
+          <div class="col-md-6">
+            <h6 class="text-primary mb-3">معلومات النسخة</h6>
+            <p class="mb-2"><strong>الإصدار:</strong> v2.5.0 (Premium)</p>
+            <p class="mb-2"><strong>تاريخ التحديث:</strong> March 2026</p>
+            <p class="mb-0"><strong>الترخيص:</strong> Golden Cala</p>
+          </div>
+        </div>
+        <hr class="my-3">
+        <div class="text-center text-muted small">
+          &copy; 2026 Ahmed Elsawi. جميع الحقوق محفوظة.
+        </div>
+      </div>
+    `;
+    settingsPage.appendChild(div);
+  }
+}
 
 })();
