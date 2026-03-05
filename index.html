@@ -3,101 +3,170 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>لوحة مبيعات محلية (بدون سيرفر)</title>
+  <title>🌟 Golden Cala Sales Analytics - لوحة تحليل مبيعات قولدن كالا</title>
+
+  <!-- Arabic-first typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
   <!-- Bootstrap RTL (CDN) -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.rtl.min.css">
 
   <link rel="stylesheet" href="css/styles.css" />
 </head>
-<body class="bg-body-tertiary">
+<body class="bg-body-tertiary" data-theme="light">
 
-<nav class="navbar navbar-expand-lg bg-white border-bottom sticky-top">
+<!-- ==========================================
+     LOGIN GATE (guests see only this)
+     ========================================== -->
+<div id="appGate" class="app-gate">
+  <div class="app-gate-card">
+    <div class="app-gate-brand">✨ Golden Cala</div>
+    <h1 class="app-gate-title">لوحة تحليل المبيعات</h1>
+    <p class="app-gate-subtitle">سجّل الدخول للمتابعة</p>
+    <form id="gateLoginForm" class="app-gate-form">
+      <div class="mb-3">
+        <label for="gateUser" class="form-label">اسم المستخدم</label>
+        <input type="text" class="form-control" id="gateUser" autocomplete="username" required>
+      </div>
+      <div class="mb-4">
+        <label for="gatePass" class="form-label">كلمة المرور</label>
+        <input type="password" class="form-control" id="gatePass" autocomplete="current-password" required>
+      </div>
+      <div id="gateMsg" class="small mb-2 text-danger" aria-live="polite"></div>
+      <button type="submit" class="btn btn-primary w-100 btn-lg" id="gateBtnLogin">دخول</button>
+    </form>
+    <p class="app-gate-hint small text-muted mt-3">الافتراضي: admin / admin123 (يمكن تغييره من الإعدادات)</p>
+  </div>
+</div>
+
+<!-- ==========================================
+     APP (logged-in users only)
+     ========================================== -->
+<div id="appMain" class="d-none">
+<nav class="navbar navbar-expand-lg sticky-top">
   <div class="container-fluid">
-    <a class="navbar-brand fw-bold" href="#" data-nav="dashboard">Sales Local</a>
+    <a class="navbar-brand" href="#" data-nav="dashboard">✨ Golden Cala</a>
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#topNav" aria-controls="topNav" aria-expanded="false" aria-label="Toggle navigation">
       <span class="navbar-toggler-icon"></span>
     </button>
     <div class="collapse navbar-collapse" id="topNav">
       <ul class="navbar-nav me-auto mb-2 mb-lg-0 gap-1">
-        <li class="nav-item"><a class="nav-link active" href="#" data-nav="dashboard">الداشبورد</a></li>
-        <li class="nav-item"><a class="nav-link" href="#" data-nav="upload">رفع ملفات Excel</a></li>
-        <li class="nav-item"><a class="nav-link" href="#" data-nav="reports">التقارير</a></li>
-        <li class="nav-item"><a class="nav-link" href="#" data-nav="data">البيانات</a></li>
-        <li class="nav-item"><a class="nav-link" href="#" data-nav="settings">الإعدادات</a></li>
+        <li class="nav-item"><a class="nav-link active" href="#" data-nav="dashboard">📊 الداشبورد</a></li>
+        <li class="nav-item nav-item-edit"><a class="nav-link" href="#" data-nav="upload">📁 استيراد البيانات</a></li>
+        <li class="nav-item"><a class="nav-link" href="#" data-nav="reports">📈 التقارير التفصيلية</a></li>
+        <li class="nav-item"><a class="nav-link" href="#" data-nav="analytics">💎 التحليلات المتقدمة</a></li>
+        <li class="nav-item nav-item-settings"><a class="nav-link" href="#" data-nav="settings">⚙️ الإعدادات</a></li>
       </ul>
 
       <div class="d-flex gap-2 align-items-center">
-        <span class="badge text-bg-secondary d-none" id="badgeOfflineLib">ملاحظة: بعض المكتبات لم تُحمَّل (تأكد من الإنترنت)</span>
-        <button class="btn btn-outline-primary btn-sm" id="btnLogin">تسجيل الدخول</button>
-        <button class="btn btn-outline-secondary btn-sm d-none" id="btnLogout">تسجيل خروج</button>
+        <span class="badge text-bg-secondary d-none" id="badgeOfflineLib">⚠️ بعض المكتبات غير محملة</span>
+        <span class="badge bg-light text-dark d-none" id="navUserBadge"></span>
+        <button class="btn btn-outline-secondary btn-sm" id="btnLogout">🚪 خروج</button>
       </div>
     </div>
   </div>
 </nav>
 
-<main class="container py-4">
+<main class="container-fluid">
 
-  <!-- Alerts -->
-  <div id="globalAlertHost"></div>
+  <!-- Alerts (announced to screen readers) -->
+  <div id="globalAlertHost" role="region" aria-live="polite" aria-label="تنبيهات"></div>
 
-  <!-- DASHBOARD -->
+  <!-- ==========================================
+       DASHBOARD PAGE
+       ========================================== -->
   <section id="page-dashboard" class="page">
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-4 mb-5">
       <div>
-        <h3 class="mb-0">الداشبورد</h3>
-        <div class="text-secondary small">تقارير مبيعات من ملفات Excel — محفوظة محليًا على جهازك (IndexedDB)</div>
+        <h2 class="mb-2 fw-bold">📊 لوحة التحكم الرئيسية</h2>
+        <p class="text-secondary small mb-0">تحليلات فورية لأداء المبيعات والعمليات الجارية</p>
       </div>
 
-      <div class="card p-2">
-        <div class="d-flex flex-wrap gap-2 align-items-end">
+      <div class="card p-4 shadow-sm">
+        <div class="d-flex flex-wrap gap-4 align-items-end">
           <div>
-            <label class="form-label small mb-1">من</label>
-            <input type="date" class="form-control form-control-sm" id="dashFrom">
+            <label class="form-label" for="dashFrom">📅 من</label>
+            <input type="date" class="form-control form-control-sm" id="dashFrom" aria-label="من تاريخ">
           </div>
           <div>
-            <label class="form-label small mb-1">إلى</label>
-            <input type="date" class="form-control form-control-sm" id="dashTo">
+            <label class="form-label" for="dashTo">📅 إلى</label>
+            <input type="date" class="form-control form-control-sm" id="dashTo" aria-label="إلى تاريخ">
           </div>
           <div>
-            <label class="form-label small mb-1">الفرع</label>
-            <select class="form-select form-select-sm" id="dashBranch"></select>
+            <label class="form-label" for="dashBranch">🏢 الفرع</label>
+            <select class="form-select form-select-sm" id="dashBranch" aria-label="الفرع"></select>
           </div>
           <div>
-            <button class="btn btn-primary btn-sm" id="btnRefreshDash">تحديث</button>
+            <label class="form-label" for="dashStatus">📋 حالة الفاتورة</label>
+            <select class="form-select form-select-sm" id="dashStatus" aria-label="حالة الفاتورة">
+              <option value="all">الكل</option>
+              <option value="closed">مغلقة</option>
+              <option value="open">مفتوحة</option>
+            </select>
           </div>
           <div>
-            <button class="btn btn-outline-success btn-sm" id="btnDownloadDash">تنزيل ملخص CSV</button>
+            <button class="btn btn-primary btn-sm" id="btnRefreshDash">🔄 تحديث</button>
+          </div>
+          <div class="d-flex gap-2">
+            <button class="btn btn-outline-secondary btn-sm" id="btnPrintDash">🖨️ طباعة</button>
+            <button class="btn btn-outline-success btn-sm" id="btnDownloadDash">📥 CSV</button>
+            <button class="btn btn-outline-primary btn-sm" id="btnDownloadDashXlsx">📊 Excel</button>
           </div>
         </div>
       </div>
     </div>
 
-    <div class="row g-3 mb-3" id="dashCards"></div>
+    <!-- Empty state (shown when no data) -->
+    <div id="dashEmptyState" class="dash-empty-state d-none" aria-live="polite">
+      <div class="dash-empty-state-icon">📊</div>
+      <h3 class="dash-empty-state-title">لا توجد بيانات لعرضها</h3>
+      <p class="dash-empty-state-text">اختر فترة وفَرعاً أو استورد ملف Excel من صفحة استيراد البيانات لبدء التحليل.</p>
+      <a href="#" class="btn btn-primary" data-nav="upload">📁 الذهاب إلى استيراد البيانات</a>
+    </div>
 
-    <div class="row g-3">
-      <div class="col-12 col-lg-7">
+    <!-- Dashboard content wrapper (for loading overlay) -->
+    <div id="dashContentWrap" class="position-relative">
+      <div id="dashLoading" class="dash-loading d-none" aria-hidden="true">
+        <div class="d-flex flex-column align-items-center">
+          <div class="dash-loading-spinner"></div>
+          <span class="dash-loading-text">جاري التحديث...</span>
+        </div>
+      </div>
+
+    <!-- Overview: KPIs + main charts -->
+    <div class="dash-overview">
+    <div class="row g-4 mb-4" id="dashCards"></div>
+
+    <div class="row g-4">
+      <div class="col-12 col-xl-8">
         <div class="card h-100">
-          <div class="card-header bg-white fw-bold">صافي المبيعات حسب اليوم</div>
+          <div class="card-header">📈 صافي المبيعات - التطور اليومي</div>
           <div class="card-body">
             <canvas id="chartDaily" height="140"></canvas>
             <div class="small text-secondary mt-2" id="chartDailyFallback" style="display:none;">
-              لا يمكن عرض الرسم البياني الآن (تأكد من تحميل Chart.js).
+              لا يمكن عرض الرسم البياني (تأكد من تحميل Chart.js)
             </div>
           </div>
         </div>
       </div>
-      <div class="col-12 col-lg-5">
-        <div class="card h-100">
-          <div class="card-header bg-white fw-bold">أفضل الفروع (صافي)</div>
+      <div class="col-12 col-xl-4">
+        <div class="card card-best-branches h-100">
+          <div class="card-header">
+            <span class="card-title">🏆 أفضل الفروع</span>
+            <span class="card-subtitle text-muted small">المبيعات والمرتجعات حسب الفرع</span>
+          </div>
           <div class="card-body">
-            <canvas id="chartBranches" height="180"></canvas>
-            <div class="small text-secondary mt-2" id="chartBranchesFallback" style="display:none;">
-              لا يمكن عرض الرسم البياني الآن (تأكد من تحميل Chart.js).
+            <div class="chart-wrap chart-wrap-bar">
+              <canvas id="chartBranches" height="180"></canvas>
             </div>
-            <hr/>
+            <div class="small text-secondary mt-2" id="chartBranchesFallback" style="display:none;">
+              لا يمكن عرض الرسم البياني
+            </div>
+            <hr class="my-3"/>
             <div class="table-responsive">
-              <table class="table table-sm align-middle" id="tblTopBranches">
+              <table class="table table-sm table-best-branches align-middle" id="tblTopBranches">
                 <thead><tr><th>الفرع</th><th class="text-nowrap">صافي</th><th>فواتير</th><th>مرتجعات</th></tr></thead>
                 <tbody></tbody>
               </table>
@@ -106,84 +175,209 @@
         </div>
       </div>
     </div>
+    </div>
+    <!-- End overview -->
 
+    <!-- Detail: more charts and tables -->
+    <div class="dash-detail">
+    <div class="row g-4 mt-0">
+      <div class="col-12 col-xl-6">
+        <div class="card h-100">
+          <div class="card-header">📊 المقارنة الشهرية</div>
+          <div class="card-body">
+            <canvas id="chartMonthly" height="150"></canvas>
+            <div class="small text-secondary mt-2" id="chartMonthlyFallback" style="display:none;">
+              لا يمكن عرض الرسم البياني
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-xl-6">
+        <div class="card h-100">
+          <div class="card-header">💎 توزيع المبيعات (دائري)</div>
+          <div class="card-body">
+            <canvas id="chartBranchesCircle" height="150"></canvas>
+            <div class="small text-secondary mt-2" id="chartBranchesCircleFallback" style="display:none;">
+              لا يمكن عرض الرسم البياني
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Refund Analytics -->
+    <div class="row g-4 mt-0">
+      <div class="col-12 col-xl-7">
+        <div class="card h-100">
+          <div class="card-header">🔄 نسبة المرتجعات حسب الفرع</div>
+          <div class="card-body">
+            <canvas id="chartRefundRate" height="170"></canvas>
+            <div class="small text-secondary mt-2" id="chartRefundRateFallback" style="display:none;">
+              لا يمكن عرض الرسم البياني
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-xl-5">
+        <div class="card h-100">
+          <div class="card-header">📋 تفاصيل المرتجعات</div>
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="table table-sm align-middle" id="tblRefundRate">
+                <thead>
+                  <tr>
+                    <th>الفرع</th>
+                    <th class="text-nowrap">نسبة %</th>
+                    <th class="text-nowrap">فواتير</th>
+                    <th class="text-nowrap">مرتجعات</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Additional Tables -->
+    <div class="row g-4 mt-0">
+      <div class="col-12 col-lg-6">
+        <div class="card">
+          <div class="card-header">👥 أفضل العملاء</div>
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="table table-sm align-middle" id="tblTopCustomers">
+                <thead><tr><th>العميل</th><th class="text-nowrap">إجمالي</th><th>عمليات</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-lg-6">
+        <div class="card">
+          <div class="card-header">📦 أفضل الموظفين</div>
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="table table-sm align-middle" id="tblBestSalesByBranch">
+                <thead><tr><th>الفرع / الموظف</th><th class="text-nowrap">صافي</th><th>فواتير</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-4 mt-0">
+      <div class="col-12">
+        <div class="card">
+          <div class="card-header">⚠️ التنبيهات والملاحظات</div>
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="table table-sm align-middle" id="tblAlerts">
+                <thead><tr><th>نوع</th><th>الرسالة</th><th>البيانات</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    </div>
+    <!-- End detail -->
+    </div>
+    <!-- End dashContentWrap -->
   </section>
 
-  <!-- UPLOAD -->
+  <!-- ==========================================
+       UPLOAD PAGE
+       ========================================== -->
   <section id="page-upload" class="page d-none">
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
       <div>
-        <h3 class="mb-0">رفع ملفات Excel</h3>
-        <div class="text-secondary small">
-          يدعم حالياً ملفات مثل: <span class="fw-semibold">Posted Invoice inquiry</span> و <span class="fw-semibold">Refund Inquiry</span>
-        </div>
-      </div>
-      <div class="d-flex gap-2">
-        <button class="btn btn-outline-secondary btn-sm" id="btnDownloadTemplateInfo">تحميل دليل الأعمدة (CSV)</button>
+        <h2 class="mb-1 fw-bold">📁 استيراد البيانات من Excel</h2>
+        <p class="text-secondary small mb-0">حمّل ملفات Excel الخاصة بك لتحليل المبيعات</p>
       </div>
     </div>
 
-    <div class="card">
-      <div class="card-body">
-        <div class="row g-3 align-items-end">
-          <div class="col-12 col-lg-7">
-            <label class="form-label">اختَر ملف Excel (.xlsx)</label>
-            <input type="file" class="form-control" id="fileInput" accept=".xlsx,.xls" multiple>
-            <div class="form-text">
-              سيتم فحص التكرار تلقائياً. التكرار = نفس (نوع المستند + الفرع + رقم المستند).
+    <div class="row g-4">
+      <div class="col-12 col-lg-6">
+        <div class="card">
+          <div class="card-header">📤 تحميل الملفات</div>
+          <div class="card-body">
+            <div class="mb-3">
+              <label class="form-label" for="fileInput">اختر ملف Excel (.xlsx أو .xls):</label>
+              <input type="file" class="form-control" id="fileInput" accept=".xlsx,.xls">
+            </div>
+            <div id="uploadStatus" class="mb-3"></div>
+            <div id="importSummary" class="mt-3"></div>
+            <button class="btn btn-primary" id="btnImportFile">📥 استيراد الملف</button>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-lg-6">
+        <div class="card">
+          <div class="card-header">ℹ️ معلومات</div>
+          <div class="card-body">
+            <p class="text-secondary small mb-3">يجب أن يحتوي الملف على الأعمدة التالية:</p>
+            <ul class="small text-secondary">
+              <li>Invoice / Ref (رقم الفاتورة)</li>
+              <li>Date (التاريخ)</li>
+              <li>Branch (الفرع)</li>
+              <li>Customer (العميل)</li>
+              <li>Amount (المبلغ)</li>
+              <li>Paid (المدفوع)</li>
+              <li>Sales (الموظف)</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-4 mt-0">
+      <div class="col-12">
+        <div class="card">
+          <div class="card-header">📊 ملفات محملة</div>
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="table table-sm align-middle" id="tblImportedFiles">
+                <thead><tr><th>اسم الملف</th><th>عدد الصفوف</th><th>التاريخ</th><th>الإجراء</th></tr></thead>
+                <tbody></tbody>
+              </table>
             </div>
           </div>
-          <div class="col-12 col-lg-5">
-            <div class="d-flex gap-2 justify-content-lg-end">
-              <button class="btn btn-primary" id="btnImport">استيراد</button>
-              <button class="btn btn-outline-danger" id="btnClearFiles">مسح الاختيار</button>
-            </div>
-          </div>
         </div>
-
-        <div class="mt-3">
-          <div class="progress" role="progressbar" aria-label="Import progress" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
-            <div class="progress-bar" id="importProgress" style="width: 0%">0%</div>
-          </div>
-        </div>
-
-        <div class="mt-3" id="importSummary"></div>
-        <hr/>
-        <h6 class="mb-2">معاينة أول 15 سجل</h6>
-        <div class="table-responsive">
-          <table class="table table-sm table-striped align-middle" id="tblPreview">
-            <thead></thead>
-            <tbody></tbody>
-          </table>
-        </div>
-
       </div>
     </div>
   </section>
 
-  <!-- REPORTS -->
+  <!-- ==========================================
+       REPORTS PAGE
+       ========================================== -->
   <section id="page-reports" class="page d-none">
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
       <div>
-        <h3 class="mb-0">التقارير</h3>
-        <div class="text-secondary small">فلتر بالتاريخ والفرع، ثم نزّل CSV.</div>
+        <h2 class="mb-1 fw-bold">📈 التقارير التفصيلية</h2>
+        <p class="text-secondary small mb-0">تقارير مفصلة حسب الفترة والفرع والموظف والنوع</p>
       </div>
-      <div class="card p-2">
-        <div class="d-flex flex-wrap gap-2 align-items-end">
+      <div class="card p-3 shadow-sm">
+        <div class="d-flex flex-wrap gap-3 align-items-end">
           <div>
-            <label class="form-label small mb-1">من</label>
+            <label class="form-label small mb-1" for="repFrom">📅 من</label>
             <input type="date" class="form-control form-control-sm" id="repFrom">
           </div>
           <div>
-            <label class="form-label small mb-1">إلى</label>
+            <label class="form-label small mb-1" for="repTo">📅 إلى</label>
             <input type="date" class="form-control form-control-sm" id="repTo">
           </div>
           <div>
-            <label class="form-label small mb-1">الفرع</label>
+            <label class="form-label small mb-1" for="repBranch">🏢 الفرع</label>
             <select class="form-select form-select-sm" id="repBranch"></select>
           </div>
           <div>
-            <label class="form-label small mb-1">نوع</label>
+            <label class="form-label small mb-1" for="repType">نوع</label>
             <select class="form-select form-select-sm" id="repType">
               <option value="all">الكل</option>
               <option value="invoice">فواتير</option>
@@ -191,212 +385,421 @@
             </select>
           </div>
           <div>
+            <label class="form-label small mb-1" for="repStatus">📋 حالة الفاتورة</label>
+            <select class="form-select form-select-sm" id="repStatus">
+              <option value="all">الكل</option>
+              <option value="closed">مغلقة</option>
+              <option value="open">مفتوحة</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="form-label small mb-1" for="repSalesBtn">الموظف (Sales)</label>
+            <div class="msel" id="repSalesMsel">
+              <button type="button" class="btn btn-outline-secondary btn-sm" id="repSalesBtn">كل الموظفين</button>
+              <div class="msel-menu card shadow-sm p-2">
+                <input class="form-control form-control-sm mb-2" id="repSalesSearch" placeholder="بحث...">
+                <div class="msel-list" id="repSalesList"></div>
+                <div class="d-flex justify-content-between mt-2">
+                  <button type="button" class="btn btn-sm btn-link" id="repSalesAll">تحديد الكل</button>
+                  <button type="button" class="btn btn-sm btn-link" id="repSalesClear">مسح</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div>
             <button class="btn btn-primary btn-sm" id="btnRunReports">عرض</button>
+          </div>
+          <div class="d-flex gap-2">
+            <button class="btn btn-outline-secondary btn-sm" id="btnPrintReports">🖨️ طباعة</button>
           </div>
         </div>
       </div>
     </div>
 
-    <div class="row g-3">
-      <div class="col-12 col-xl-6">
+    <div class="row g-4">
+      <div class="col-12 col-lg-6">
         <div class="card">
-          <div class="card-header bg-white d-flex justify-content-between align-items-center">
-            <span class="fw-bold">ملخص حسب الفرع</span>
-            <button class="btn btn-outline-success btn-sm" data-dl="branch">CSV</button>
-          </div>
+          <div class="card-header">🏢 التقرير حسب الفرع</div>
           <div class="card-body">
             <div class="table-responsive">
               <table class="table table-sm align-middle" id="tblByBranch">
-                <thead>
-                  <tr>
-                    <th>الفرع</th>
-                    <th class="text-nowrap">صافي</th>
-                    <th class="text-nowrap">إجمالي فواتير</th>
-                    <th class="text-nowrap">إجمالي مرتجعات</th>
-                    <th class="text-nowrap">عدد الفواتير</th>
-                    <th class="text-nowrap">عدد المرتجعات</th>
-                  </tr>
-                </thead>
+                <thead><tr><th>الفرع</th><th>صافي</th><th>فواتير</th><th>مرتجعات</th></tr></thead>
                 <tbody></tbody>
               </table>
             </div>
           </div>
         </div>
       </div>
-
-      <div class="col-12 col-xl-6">
+      <div class="col-12 col-lg-6">
         <div class="card">
-          <div class="card-header bg-white d-flex justify-content-between align-items-center">
-            <span class="fw-bold">ملخص حسب الموظف (Sales)</span>
-            <button class="btn btn-outline-success btn-sm" data-dl="salesperson">CSV</button>
-          </div>
+          <div class="card-header">👤 التقرير حسب الموظف</div>
           <div class="card-body">
             <div class="table-responsive">
               <table class="table table-sm align-middle" id="tblBySalesperson">
-                <thead>
-                  <tr>
-                    <th>الموظف</th>
-                    <th class="text-nowrap">صافي</th>
-                    <th class="text-nowrap">فواتير</th>
-                    <th class="text-nowrap">مرتجعات</th>
-                    <th class="text-nowrap">عدد العمليات</th>
-                  </tr>
-                </thead>
+                <thead><tr><th>الموظف</th><th>صافي</th><th>فواتير</th><th>مرتجعات</th></tr></thead>
                 <tbody></tbody>
               </table>
             </div>
-            <div class="small text-secondary mt-2">ملاحظة: إذا كانت خانة Sales فارغة في المصدر، سيظهر "(غير محدد)".</div>
           </div>
         </div>
       </div>
+    </div>
 
+    <div class="row g-4 mt-0">
       <div class="col-12">
         <div class="card">
-          <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
-            <span class="fw-bold">قائمة العمليات (بحث + تنزيل)</span>
-            <div class="d-flex gap-2">
-              <input class="form-control form-control-sm" id="txtSearchTx" placeholder="ابحث (رقم/عميل/فرع/موظف)..." style="min-width: 240px;">
-              <button class="btn btn-outline-success btn-sm" data-dl="transactions">CSV</button>
+          <div class="card-header">📊 جميع العمليات
+            <div class="float-start">
+              <input type="text" class="form-control form-control-sm" id="txtSearchTx" placeholder="بحث..." style="width: 200px;" aria-label="بحث في العمليات">
             </div>
           </div>
           <div class="card-body">
-            <div class="table-responsive" style="max-height: 520px; overflow:auto;">
-              <table class="table table-sm table-striped align-middle" id="tblTransactions">
-                <thead></thead>
+            <div id="reportTotalsSummary" class="d-flex flex-wrap gap-3 align-items-center mb-3 p-3 bg-light rounded small" role="region" aria-label="ملخص الإجماليات"></div>
+            <div class="table-responsive">
+              <table class="table table-sm align-middle" id="tblTransactions">
+                <thead><tr><th>رقم الفاتورة</th><th>التاريخ</th><th>الفرع</th><th>العميل</th><th>المبلغ</th><th>المدفوع</th><th>النوع</th><th>الموظف</th></tr></thead>
                 <tbody></tbody>
               </table>
             </div>
-            <div class="small text-secondary mt-2">نصيحة: لو البيانات كبيرة، استخدم فلتر التاريخ/الفرع لتقليل الحمل.</div>
           </div>
         </div>
       </div>
-
     </div>
   </section>
 
-  <!-- DATA -->
-  <section id="page-data" class="page d-none">
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <!-- ANALYTICS PAGE (Imported from earlier) -->
+  <section id="page-analytics" class="page d-none">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
       <div>
-        <h3 class="mb-0">البيانات</h3>
-        <div class="text-secondary small">نسخ احتياطي / استعادة — وتنظيف البيانات.</div>
+        <h2 class="mb-1 fw-bold">💎 التحليلات المتقدمة</h2>
+        <p class="text-secondary small mb-0">تحليلات عميقة للأداء والعملاء والموظفين والبيانات</p>
+      </div>
+      <div class="card p-3 shadow-sm">
+        <div class="d-flex flex-wrap gap-3 align-items-end">
+          <div>
+            <label class="form-label small mb-1" for="analFrom">📅 من</label>
+            <input type="date" class="form-control form-control-sm" id="analFrom">
+          </div>
+          <div>
+            <label class="form-label small mb-1" for="analTo">📅 إلى</label>
+            <input type="date" class="form-control form-control-sm" id="analTo">
+          </div>
+          <div>
+            <label class="form-label small mb-1" for="analBranch">🏢 الفرع</label>
+            <select class="form-select form-select-sm" id="analBranch"></select>
+          </div>
+          <div>
+            <button class="btn btn-primary btn-sm" id="btnRefreshAnalytics">🔄 تحديث</button>
+          </div>
+          <div class="d-flex gap-2">
+            <button class="btn btn-outline-secondary btn-sm" id="btnToggleReports">👁️ إظهار/إخفاء</button>
+          </div>
+        </div>
       </div>
     </div>
 
-    <div class="row g-3">
-      <div class="col-12 col-lg-6">
-        <div class="card">
-          <div class="card-header bg-white fw-bold">نسخ احتياطي</div>
-          <div class="card-body">
-            <p class="text-secondary small mb-2">ينزّل ملف JSON يحتوي على كل البيانات (Transactions + Branches).</p>
-            <button class="btn btn-success" id="btnExportBackup">تنزيل Backup (JSON)</button>
+    <!-- Report Toggles -->
+    <div class="card mb-4 p-4 bg-light">
+      <h6 class="mb-3 fw-bold">اختر التقارير المراد عرضها:</h6>
+      <div class="row g-3">
+        <div class="col-12 col-md-6 col-lg-4">
+          <h6 class="text-muted small mb-2">📈 تقارير الأداء</h6>
+          <div class="form-check">
+            <input class="form-check-input analytics-toggle" type="checkbox" id="repSalesPerf" checked value="sales-perf">
+            <label class="form-check-label small" for="repSalesPerf">Trend يومي/أسبوعي/شهري</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input analytics-toggle" type="checkbox" id="repGrowth" checked value="growth">
+            <label class="form-check-label small" for="repGrowth">YoY / MoM Growth</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input analytics-toggle" type="checkbox" id="repTopBottom" checked value="top-bottom">
+            <label class="form-check-label small" for="repTopBottom">Top / Bottom Branches</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input analytics-toggle" type="checkbox" id="repSalesMix" checked value="sales-mix">
+            <label class="form-check-label small" for="repSalesMix">Sales Mix (توزيع)</label>
+          </div>
+        </div>
+        <div class="col-12 col-md-6 col-lg-4">
+          <h6 class="text-muted small mb-2">🔄 تقارير المرتجعات</h6>
+          <div class="form-check">
+            <input class="form-check-input analytics-toggle" type="checkbox" id="repRefundTrend" checked value="refund-trend">
+            <label class="form-check-label small" for="repRefundTrend">Refund Rate Trend</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input analytics-toggle" type="checkbox" id="repRefundHotspots" checked value="refund-hotspots">
+            <label class="form-check-label small" for="repRefundHotspots">Refund Hotspots</label>
+          </div>
+        </div>
+        <div class="col-12 col-md-6 col-lg-4">
+          <h6 class="text-muted small mb-2">👥 تقارير العملاء</h6>
+          <div class="form-check">
+            <input class="form-check-input analytics-toggle" type="checkbox" id="repCustomerRFM" checked value="customer-rfm">
+            <label class="form-check-label small" for="repCustomerRFM">RFM (Recency/Frequency/Monetary)</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input analytics-toggle" type="checkbox" id="repNewReturning" checked value="new-returning">
+            <label class="form-check-label small" for="repNewReturning">New vs Returning</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input analytics-toggle" type="checkbox" id="repPareto" checked value="pareto">
+            <label class="form-check-label small" for="repPareto">Pareto 80/20</label>
+          </div>
+        </div>
+        <div class="col-12 col-md-6 col-lg-4">
+          <h6 class="text-muted small mb-2">👔 تقارير الموظفين</h6>
+          <div class="form-check">
+            <input class="form-check-input analytics-toggle" type="checkbox" id="repSalesLeaderboard" checked value="sales-leaderboard">
+            <label class="form-check-label small" for="repSalesLeaderboard">Leaderboard</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input analytics-toggle" type="checkbox" id="repSalesConsistency" checked value="sales-consistency">
+            <label class="form-check-label small" for="repSalesConsistency">Best & Consistency</label>
+          </div>
+        </div>
+        <div class="col-12 col-md-6 col-lg-4">
+          <h6 class="text-muted small mb-2">⚙️ تقارير تشغيلية</h6>
+          <div class="form-check">
+            <input class="form-check-input analytics-toggle" type="checkbox" id="repDataQuality" checked value="data-quality">
+            <label class="form-check-label small" for="repDataQuality">Data Quality</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input analytics-toggle" type="checkbox" id="repPeakDays" checked value="peak-days">
+            <label class="form-check-label small" for="repPeakDays">Peak Days</label>
+          </div>
+        </div>
+        <div class="col-12 col-md-6 col-lg-4">
+          <h6 class="text-muted small mb-2">💰 تقارير مالية</h6>
+          <div class="form-check">
+            <input class="form-check-input analytics-toggle" type="checkbox" id="repDiscountImpact" checked value="discount-impact">
+            <label class="form-check-label small" for="repDiscountImpact">Discount Impact</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input analytics-toggle" type="checkbox" id="repAvgTicket" checked value="avg-ticket">
+            <label class="form-check-label small" for="repAvgTicket">Average Ticket Size</label>
           </div>
         </div>
       </div>
-      <div class="col-12 col-lg-6">
-        <div class="card">
-          <div class="card-header bg-white fw-bold">استعادة Backup</div>
-          <div class="card-body">
-            <input type="file" id="backupInput" class="form-control" accept=".json">
-            <div class="form-text">سيتم دمج البيانات مع فحص التكرار.</div>
-            <button class="btn btn-primary mt-2" id="btnImportBackup">استعادة</button>
-          </div>
-        </div>
-      </div>
+    </div>
 
-      <div class="col-12">
-        <div class="card border-danger">
-          <div class="card-header bg-white fw-bold text-danger">تنظيف كامل (حذف كل البيانات)</div>
-          <div class="card-body">
-            <p class="text-secondary small">سيحذف كل البيانات المحلية من هذا المتصفح.</p>
-            <button class="btn btn-outline-danger" id="btnWipeAll">حذف كل البيانات</button>
-          </div>
-        </div>
+    <!-- Analytics Content Area -->
+    <div id="analyticsContent">
+      <div class="text-center py-5">
+        <p class="text-muted">اضغط "تحديث" لتحميل التحليلات</p>
       </div>
     </div>
   </section>
 
-  <!-- SETTINGS -->
+  <!-- DATA PAGE -->
+  <!-- data section merged into settings, removed standalone page -->
+
+  <!-- SETTINGS PAGE -->
   <section id="page-settings" class="page d-none">
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-      <div>
-        <h3 class="mb-0">الإعدادات</h3>
-        <div class="text-secondary small">اختياري: تفعيل/تعطيل تسجيل الدخول المحلي.</div>
-      </div>
+    <div>
+      <h2 class="mb-4 fw-bold">⚙️ الإعدادات</h2>
     </div>
 
-    <div class="row g-3">
-      <div class="col-12 col-lg-6">
+    <!-- User management (visible to all with Settings access; full content only for superadmin) -->
+    <div class="row g-4 mb-4" id="settingsUserMgmtRow">
+      <div class="col-12">
         <div class="card">
-          <div class="card-header bg-white fw-bold">تسجيل الدخول (Local)</div>
+          <div class="card-header">👥 إدارة المستخدمين</div>
           <div class="card-body">
-            <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" role="switch" id="chkAuthEnabled">
-              <label class="form-check-label" for="chkAuthEnabled">تفعيل تسجيل الدخول</label>
+            <div id="settingsUserMgmtRestricted" class="d-none alert alert-secondary mb-0">
+              إدارة المستخدمين متاحة فقط للمدير الأعلى (superadmin). سجّل الخروج ثم الدخول بحساب المدير الأعلى للوصول.
             </div>
-            <div class="small text-secondary mt-2">
-              * الأمان هنا محلي فقط (ليس بديلاً عن سيرفر). كلمة المرور تُخزَّن كـ Hash داخل المتصفح.
+            <div id="settingsUserMgmtContent" class="d-none">
+              <div class="mb-4">
+                <h6 class="mb-3">إضافة مستخدم جديد</h6>
+                <form id="formAddUser" class="user-form" method="post" action="#" autocomplete="on" aria-label="إضافة مستخدم جديد">
+                  <div class="row g-2 align-items-end">
+                    <div class="col-auto">
+                      <label class="form-label small mb-0" for="newUserUsername">اسم المستخدم</label>
+                      <input type="text" class="form-control form-control-sm" id="newUserUsername" placeholder="username" autocomplete="username">
+                    </div>
+                    <div class="col-auto">
+                      <label class="form-label small mb-0" for="newUserPassword">كلمة المرور</label>
+                      <input type="password" class="form-control form-control-sm" id="newUserPassword" placeholder="••••••••" autocomplete="new-password">
+                    </div>
+                    <div class="col-auto">
+                      <label class="form-label small mb-0" for="newUserRole">الدور</label>
+                      <select class="form-select form-select-sm" id="newUserRole">
+                        <option value="viewer">عرض فقط</option>
+                        <option value="editor">تعديل (استيراد)</option>
+                        <option value="admin">مدير (إعدادات)</option>
+                      </select>
+                    </div>
+                    <div class="col-auto">
+                      <button type="submit" class="btn btn-primary btn-sm" id="btnAddUser">إضافة</button>
+                    </div>
+                  </div>
+                  <div id="addUserMsg" class="small mt-2"></div>
+                </form>
+              </div>
+              <h6 class="mb-2">المستخدمون</h6>
+              <div class="table-responsive">
+                <table class="table table-sm" id="tblUsers">
+                  <thead><tr><th>المستخدم</th><th>الدور</th><th>الإجراء</th></tr></thead>
+                  <tbody></tbody>
+                </table>
+              </div>
             </div>
-            <hr/>
-            <button class="btn btn-outline-primary" id="btnResetAuth">إعادة ضبط المستخدم/كلمة المرور</button>
-          </div>
-        </div>
-      </div>
-
-      <div class="col-12 col-lg-6">
-        <div class="card">
-          <div class="card-header bg-white fw-bold">معلومات</div>
-          <div class="card-body small text-secondary">
-            <ul class="mb-0">
-              <li>قاعدة البيانات: IndexedDB داخل المتصفح.</li>
-              <li>قراءة Excel تحتاج مكتبة XLSX (SheetJS) من CDN. لو فتحت التطبيق بدون إنترنت، لن يعمل الاستيراد.</li>
-              <li>لأفضل تجربة: شغّل التطبيق من سيرفر محلي (مثال: python -m http.server).</li>
-            </ul>
           </div>
         </div>
       </div>
     </div>
 
+    <div class="row g-4">
+      <div class="col-12 col-lg-6 settings-card-auth">
+        <div class="card">
+          <div class="card-header">🔐 تغيير كلمة المرور</div>
+          <div class="card-body">
+            <p class="small text-muted mb-3">غيّر كلمة مرور حسابك الحالي.</p>
+            <form id="formChangePassword" method="post" action="#" autocomplete="on" aria-label="تغيير كلمة المرور">
+              <div class="mb-2">
+                <label class="form-label" for="changePassCurrent">كلمة المرور الحالية</label>
+                <input type="password" class="form-control" id="changePassCurrent" autocomplete="current-password" placeholder="••••••••">
+              </div>
+              <div class="mb-2">
+                <label class="form-label" for="changePassNew">كلمة المرور الجديدة</label>
+                <input type="password" class="form-control" id="changePassNew" autocomplete="new-password" placeholder="••••••••">
+              </div>
+              <div class="mb-3">
+                <label class="form-label" for="changePassConfirm">تأكيد كلمة المرور الجديدة</label>
+                <input type="password" class="form-control" id="changePassConfirm" autocomplete="new-password" placeholder="••••••••">
+              </div>
+              <div id="changePassMsg" class="small mb-2"></div>
+              <button type="submit" class="btn btn-primary btn-sm" id="btnChangePassword">تحديث كلمة المرور</button>
+            </form>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-lg-6">
+        <div class="card">
+          <div class="card-header">ℹ️ معلومات التطبيق</div>
+          <div class="card-body">
+            <p><strong>الإصدار:</strong> 2.0 Premium Golden</p>
+            <p><strong>التخزين:</strong> IndexedDB (محلي)</p>
+            <p><strong>الحجم المستخدم:</strong> <span id="storageSize">جاري الحساب...</span></p>
+            <p class="small text-muted">جميع البيانات محفوظة محليًا على جهازك. لا يتم نقل أي بيانات للخوادم.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- merged data management content -->
+    <hr class="my-5" />
+    <div class="row g-4">
+      <div class="col-12 col-lg-6">
+        <div class="card">
+          <div class="card-header">📊 إحصائيات قاعدة البيانات</div>
+          <div class="card-body">
+            <div class="row g-3">
+              <div class="col-6">
+                <div class="kpi-card">
+                  <h6>إجمالي العمليات</h6>
+                  <h3 id="statTransactions">0</h3>
+                </div>
+              </div>
+              <div class="col-6">
+                <div class="kpi-card">
+                  <h6>الفروع</h6>
+                  <h3 id="statBranches">0</h3>
+                </div>
+              </div>
+              <div class="col-6">
+                <div class="kpi-card">
+                  <h6>الموظفين</h6>
+                  <h3 id="statSales">0</h3>
+                </div>
+              </div>
+              <div class="col-6">
+                <div class="kpi-card">
+                  <h6>العملاء</h6>
+                  <h3 id="statCustomers">0</h3>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-lg-6">
+        <div class="card">
+          <div class="card-header">📈 ملخص البيانات</div>
+          <div class="card-body" id="dataSummary">
+            <p class="text-muted">جاري تحميل البيانات...</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-12">
+        <div class="card">
+          <div class="card-header">📋 جميع الفروع</div>
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="table table-sm align-middle" id="tblAllBranches">
+                <thead><tr><th>الفرع</th><th>عدد العمليات</th><th>صافي المبيعات</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12">
+        <button class="btn btn-danger btn-sm" id="btnClearAllData">🗑️ حذف جميع البيانات</button>
+      </div>
+    </div>
   </section>
 
 </main>
 
-<!-- Login Modal -->
-<div class="modal fade" id="loginModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog">
+<!-- Login Modal (legacy, kept for any in-app re-login if needed) -->
+<div class="modal fade modal-gc" id="loginModal" tabindex="-1" aria-hidden="true" aria-labelledby="loginModalTitle">
+  <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
-        <h1 class="modal-title fs-5">تسجيل الدخول</h1>
+        <h1 class="modal-title fs-5" id="loginModalTitle">🔐 تسجيل الدخول</h1>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
         <div class="alert alert-info small">
-          إذا أول مرة: اكتب يوزر وباسورد وسيتم حفظهم محلياً (للاستخدام على نفس الجهاز/المتصفح).
+          إذا أول مرة: اكتب يوزر وباسورد وسيتم حفظهم محليًا (للاستخدام على نفس الجهاز/المتصفح).
         </div>
-        <div class="mb-2">
-          <label class="form-label">اسم المستخدم</label>
-          <input type="text" class="form-control" id="loginUser" autocomplete="username">
-        </div>
-        <div class="mb-2">
-          <label class="form-label">كلمة المرور</label>
-          <input type="password" class="form-control" id="loginPass" autocomplete="current-password">
-        </div>
-        <div class="form-text">لو مش عاوز تسجيل دخول: من صفحة الإعدادات اقفل الخيار.</div>
-        <div id="loginMsg" class="small mt-2"></div>
+        <form id="loginModalForm" method="post" action="#" autocomplete="on" aria-label="تسجيل الدخول">
+          <div class="mb-2">
+            <label class="form-label" for="loginUser">اسم المستخدم</label>
+            <input type="text" class="form-control" id="loginUser" autocomplete="username">
+          </div>
+          <div class="mb-2">
+            <label class="form-label" for="loginPass">كلمة المرور</label>
+            <input type="password" class="form-control" id="loginPass" autocomplete="current-password">
+          </div>
+          <div class="form-text">لو مش عاوز تسجيل دخول: من صفحة الإعدادات اقفل الخيار.</div>
+          <div id="loginMsg" class="small mt-2"></div>
+        </form>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">إغلاق</button>
-        <button type="button" class="btn btn-primary" id="btnDoLogin">دخول</button>
+        <button type="submit" form="loginModalForm" class="btn btn-primary" id="btnDoLogin">دخول</button>
       </div>
     </div>
   </div>
 </div>
+</div>
+<!-- end #appMain -->
 
 <!-- Libraries (CDN) -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
+<!-- App modules (order matters) -->
+<script src="js/helpers.js"></script>
+<script src="js/db.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/excel.js"></script>
+<script src="js/core.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
