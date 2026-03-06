@@ -5,6 +5,8 @@
 
   const SUPERADMIN_USER = 'sawi';
   const SUPERADMIN_PASS = 'Mm@100100';
+  const READONLY_USER = 'user';
+  const READONLY_PASS = 'user123';
   const SESSION_USER = 'auth_username';
   const SESSION_ROLE = 'auth_role';
 
@@ -50,6 +52,10 @@
     if (u === SUPERADMIN_USER && p === SUPERADMIN_PASS) {
       setSession(SUPERADMIN_USER, 'superadmin');
       return { ok: true, role: 'superadmin' };
+    }
+    if (u === READONLY_USER && p === READONLY_PASS) {
+      setSession(READONLY_USER, 'viewer');
+      return { ok: true, role: 'viewer' };
     }
 
     const stored = await GC.db.usersGet(u);

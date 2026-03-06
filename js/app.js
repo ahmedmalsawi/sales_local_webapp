@@ -48,6 +48,10 @@
   const aggBestSalesByBranch = GC.core.aggBestSalesByBranch;
   const buildAlerts = GC.core.buildAlerts;
 
+  if (typeof Chart !== 'undefined' && typeof ChartDataLabels !== 'undefined') {
+    try { Chart.register(ChartDataLabels); } catch (e) { /* already registered */ }
+  }
+
   // ---------------------------
   // UI Rendering
   // ---------------------------
@@ -415,6 +419,7 @@
     if(chartBranchesCircle) chartBranchesCircle.destroy();
     can.setAttribute('role', 'img');
     can.setAttribute('aria-label', 'رسم دائري: توزيع المبيعات حسب الفرع');
+    const totalSum = data.reduce((a, b) => a + Number(b), 0);
     chartBranchesCircle = new Chart(can, {
       type: 'doughnut',
       data: {
@@ -429,7 +434,7 @@
       options: {
         responsive: true,
         animation: { duration: 400, easing: 'easeInOutQuart' },
-        layout: { padding: { top: 8, bottom: 8, left: 8, right: 8 } },
+        layout: { padding: { top: 24, bottom: 24, left: 24, right: 24 } },
         plugins: {
           legend: {
             position: 'bottom',
@@ -444,48 +449,23 @@
             callbacks: {
               label: (context) => `${fmtNumber(context.parsed)} ريال`
             }
+          },
+          datalabels: {
+            anchor: 'end',
+            align: 'start',
+            offset: 6,
+            color: '#1a1a1a',
+            font: { size: 11, weight: '600', family: 'Tajawal, sans-serif' },
+            formatter: (value, ctx) => {
+              const total = totalSum || 1;
+              const pct = ((Number(value) / total) * 100).toFixed(1);
+              const label = (ctx.chart.data.labels[ctx.dataIndex] || '').toString();
+              const short = label.split('-').slice(1).join('-').trim() || label;
+              return short + '\n' + fmtNumber(value) + ' (' + pct + '%)';
+            }
           }
         }
-      },
-      plugins: [{
-        id: 'doughnutSegmentLabels',
-        afterDraw(chart) {
-          const dataset = chart.data.datasets[0];
-          if (!dataset || !dataset.data || !chart.chartArea) return;
-          const values = dataset.data;
-          const total = values.reduce((a, b) => a + Number(b), 0);
-          if (total <= 0) return;
-          const meta = chart.getDatasetMeta(0);
-          if (!meta || !meta.data.length) return;
-          const ctx = chart.ctx;
-          const cx = (chart.chartArea.left + chart.chartArea.right) / 2;
-          const cy = (chart.chartArea.top + chart.chartArea.bottom) / 2;
-          const radius = Math.min(chart.chartArea.right - chart.chartArea.left, chart.chartArea.bottom - chart.chartArea.top) / 2;
-          const labelRadius = radius * 0.7;
-          meta.data.forEach((arc, index) => {
-            const value = Number(values[index]) || 0;
-            const pct = ((value / total) * 100).toFixed(1);
-            const shortLabel = (chart.data.labels[index] || '').toString().split('-').slice(1).join('-').trim() || chart.data.labels[index];
-            const midAngle = (arc.startAngle + arc.endAngle) / 2 - Math.PI / 2;
-            const x = cx + Math.cos(midAngle) * labelRadius;
-            const y = cy + Math.sin(midAngle) * labelRadius;
-            ctx.save();
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.shadowColor = 'rgba(0,0,0,0.5)';
-            ctx.shadowBlur = 2;
-            ctx.shadowOffsetX = 1;
-            ctx.shadowOffsetY = 1;
-            ctx.fillStyle = '#fff';
-            ctx.font = 'bold 11px Tajawal, sans-serif';
-            ctx.fillText(shortLabel, x, y - 10);
-            ctx.font = '11px Tajawal, sans-serif';
-            ctx.fillText(fmtNumber(value), x, y + 2);
-            ctx.fillText('(' + pct + '%)', x, y + 14);
-            ctx.restore();
-          });
-        }
-      }]
+      }
     });
   }
 
