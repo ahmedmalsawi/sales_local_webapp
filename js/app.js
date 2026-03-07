@@ -1,52 +1,60 @@
-/* Sales Local Web App
-   - Uses GC modules: helpers, db, auth, excel, core
-   - Dashboard, reports, analytics, boot
+/* Sales Local Web App - Main (uses app-refs.js for refs)
+   - Dashboard, reports, analytics, boot, gate
 */
-
-(function(){
+(function () {
   'use strict';
-
-  const $ = GC.$;
-  const $$ = GC.$$;
-  const fmtNumber = GC.fmtNumber;
-  const fmtMoney = GC.fmtMoney;
-  const fmtPercent = GC.fmtPercent;
-  const toISODate = GC.toISODate;
-  const toISODateTime = GC.toISODateTime;
-  const showAlert = GC.showAlert;
-  const showLoadingState = GC.showLoadingState;
-  const withLoadingSpinner = GC.withLoadingSpinner;
-  const animatePageTransition = GC.animatePageTransition;
-  const downloadBlob = GC.downloadBlob;
-  const downloadText = GC.downloadText;
-  const loadScript = GC.loadScript;
-  const toCSV = GC.toCSV;
-  const groupBy = GC.groupBy;
-  const monthKeyFromISODate = GC.monthKeyFromISODate;
-
-  const AUTH = GC.auth.AUTH;
-  const idbGetAll = GC.db.idbGetAll;
-  const idbClearStore = GC.db.idbClearStore;
-  const wipeAll = GC.db.wipeAll;
-  const upsertBranchesFromRecords = GC.db.upsertBranchesFromRecords;
-  const addManyTransactions = GC.db.addManyTransactions;
-  const getDb = GC.db.getDb;
-
-  const libsStatus = GC.excel.libsStatus;
-  const parseExcelFile = GC.excel.parseExcelFile;
-
-  const txISODate = GC.core.txISODate;
-  const filterTransactions = GC.core.filterTransactions;
-  const netValue = GC.core.netValue;
-  const computeKPIs = GC.core.computeKPIs;
-  const aggByBranch = GC.core.aggByBranch;
-  const aggRefundRateByBranch = GC.core.aggRefundRateByBranch;
-  const aggBySalesperson = GC.core.aggBySalesperson;
-  const aggDailyDetails = GC.core.aggDailyDetails;
-  const aggMonthly = GC.core.aggMonthly;
-  const aggTopCustomers = GC.core.aggTopCustomers;
-  const aggBestSalesByBranch = GC.core.aggBestSalesByBranch;
-  const buildAlerts = GC.core.buildAlerts;
+  var APP = window.APP;
+  if (!APP) { console.error('Load app-refs.js first'); return; }
+  var GC = APP.GC;
+  var $ = APP.$;
+  var $$ = APP.$$;
+  var fmtNumber = APP.fmtNumber;
+  var fmtMoney = APP.fmtMoney;
+  var fmtPercent = APP.fmtPercent;
+  var toISODate = APP.toISODate;
+  var toISODateTime = APP.toISODateTime;
+  var showAlert = APP.showAlert;
+  var showLoadingState = APP.showLoadingState;
+  var withLoadingSpinner = APP.withLoadingSpinner;
+  var animatePageTransition = APP.animatePageTransition;
+  var downloadBlob = APP.downloadBlob;
+  var downloadText = APP.downloadText;
+  var loadScript = APP.loadScript;
+  var toCSV = APP.toCSV;
+  var groupBy = APP.groupBy;
+  var monthKeyFromISODate = APP.monthKeyFromISODate;
+  var AUTH = APP.AUTH;
+  var idbGetAll = APP.idbGetAll;
+  var idbClearStore = APP.idbClearStore;
+  var wipeAll = APP.wipeAll;
+  var upsertBranchesFromRecords = APP.upsertBranchesFromRecords;
+  var addManyTransactions = APP.addManyTransactions;
+  var getDb = APP.getDb;
+  var libsStatus = APP.libsStatus;
+  var parseExcelFile = APP.parseExcelFile;
+  var readExcelPreview = APP.readExcelPreview;
+  var getInvoiceFields = APP.getInvoiceFields;
+  var getRefundFields = APP.getRefundFields;
+  var getCombinedFields = APP.getCombinedFields;
+  var buildDefaultMappingFromFileColumns = APP.buildDefaultMappingFromFileColumns;
+  var txISODate = APP.txISODate;
+  var filterTransactions = APP.filterTransactions;
+  var netValue = APP.netValue;
+  var computeKPIs = APP.computeKPIs;
+  var aggByBranch = APP.aggByBranch;
+  var aggRefundRateByBranch = APP.aggRefundRateByBranch;
+  var aggBySalesperson = APP.aggBySalesperson;
+  var aggDailyDetails = APP.aggDailyDetails;
+  var aggMonthly = APP.aggMonthly;
+  var aggTopCustomers = APP.aggTopCustomers;
+  var aggBestSalesByBranch = APP.aggBestSalesByBranch;
+  var buildAlerts = APP.buildAlerts;
+  var showGate = APP.showGate;
+  var showApp = APP.showApp;
+  var applyNavByRole = APP.applyNavByRole;
+  var updateAuthButtons = APP.updateAuthButtons;
+  var enforceAuth = APP.enforceAuth;
+  var updateDataSection = APP.updateDataSection;
 
   if (typeof Chart !== 'undefined' && typeof ChartDataLabels !== 'undefined') {
     try { Chart.register(ChartDataLabels); } catch (e) { /* already registered */ }
@@ -75,6 +83,34 @@
     }
   }
 
+  /** Fill the default-branch dropdown for import (value = branchId|branchName for manual linking). */
+  function fillDefaultBranchImportSelect(selectEl, branches){
+    if(!selectEl) return;
+    const first = selectEl.querySelector('option[value=""]');
+    selectEl.innerHTML = '';
+    const optNone = document.createElement('option');
+    optNone.value = '';
+    optNone.textContent = 'لا فرع افتراضي';
+    selectEl.appendChild(optNone);
+    for(const b of (branches || []).sort((a,b)=>Number(a.branchId)-Number(b.branchId))){
+      const o = document.createElement('option');
+      o.value = `${b.branchId}|${String(b.branchName || '').replace(/\|/g, ' ')}`;
+      o.textContent = `${b.branchId} - ${b.branchName}`;
+      selectEl.appendChild(o);
+    }
+  }
+
+  /** Get default branch from import UI (for manual branch linking). Returns null or { branchId, branchName }. */
+  function getDefaultBranchFromImportUI(){
+    const sel = $('#defaultBranchImport');
+    if(!sel || !sel.value) return null;
+    const parts = sel.value.split('|');
+    const branchId = parts[0] != null && parts[0] !== '' ? Number(parts[0]) : null;
+    const branchName = parts.slice(1).join('|').trim() || null;
+    if(branchId == null) return null;
+    return { branchId, branchName: branchName || '' };
+  }
+
   function numSpan(html){
     return `<span class="num">${html}</span>`;
   }
@@ -82,39 +118,64 @@
   function renderDashCards(k){
     const host = $('#dashCards');
     if(!host) return;
-    const totalDiscount = (k.invDisc || 0) + (k.refDisc || 0);
-    const totalPaid = (k.invPaid || 0) + (k.refPaid || 0);
-    // ترتيب من اليمين لليسار: الصف الأول ثم الصف الثاني
-    const row1 = [
-      {title:'اجمالي الفواتير', value: numSpan(fmtMoney(k.invGross)), icon:'📄'},
-      {title:'اجمالي الخصومات', value: numSpan(fmtMoney(totalDiscount)), icon:'🏷️'},
-      {title:'اجمالي المرتجعات', value: numSpan(fmtMoney(k.refGross)), icon:'↩️'},
-      {title:'صافي المبيعات', value: numSpan(fmtMoney(k.net)), icon:'💰'},
+    const invGross = k.invGross || 0, invDisc = k.invDisc || 0, invPaid = k.invPaid || 0;
+    const refGross = k.refGross || 0, refDisc = k.refDisc || 0, refPaid = k.refPaid || 0;
+    const netInvoices = invGross - invDisc;
+    const netRefunds = refGross - refDisc;
+    const netDiscounts = invDisc - refDisc;
+    const netPaid = invPaid - refPaid;
+
+    const invoicesRow = [
+      { title: 'اجمالي فواتير المبيعات', value: numSpan(fmtMoney(invGross)), icon: '📄' },
+      { title: 'اجمالي خصم فواتير المبيعات', value: numSpan(fmtMoney(invDisc)), icon: '🏷️' },
+      { title: 'اجمالي المدفوع', value: numSpan(fmtMoney(invPaid)), icon: '💵' },
+      { title: 'صافي الفواتير', value: numSpan(fmtMoney(netInvoices)), icon: '📊' }
     ];
-    const row2 = [
-      {title:'اجمالي المدفوعات', value: numSpan(fmtMoney(totalPaid)), icon:'💵'},
-      {title:'عدد الفواتير', value: numSpan(fmtNumber(k.invCount)), icon:'📊'},
-      {title:'عدد المرتجعات', value: numSpan(fmtNumber(k.refCount)), icon:'📉'},
-      {title:'متوسط الفاتورة', value: numSpan(fmtMoney(k.avgTicket)), icon:'📈'},
+    const refundsRow = [
+      { title: 'اجمالي فواتير المرتجعات', value: numSpan(fmtMoney(refGross)), icon: '↩️' },
+      { title: 'اجمالي خصم المرتجعات', value: numSpan(fmtMoney(refDisc)), icon: '🏷️' },
+      { title: 'اجمالي المدفوع (للعملاء)', value: numSpan(fmtMoney(refPaid)), icon: '💵' },
+      { title: 'صافي المرتجعات', value: numSpan(fmtMoney(netRefunds)), icon: '📉' }
     ];
-    function makeCard(c){
-      return `
-        <div class="card kpi-card p-3 fade-in-up">
-          <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:var(--spacing-md);">
-            <div class="kpi-title">${c.title}</div>
-            <span style="font-size:1.5rem; opacity:0.6;">${c.icon}</span>
-          </div>
-          <div class="kpi-value">${c.value}</div>
+    const totalRow = [
+      { title: 'صافي فواتير المبيعات', value: numSpan(fmtMoney(netInvoices)), icon: '📄' },
+      { title: 'صافي الخصومات', value: numSpan(fmtMoney(netDiscounts)), icon: '🏷️' },
+      { title: 'صافي المدفوع', value: numSpan(fmtMoney(netPaid)), icon: '💵' },
+      { title: 'صافي المبيعات', value: numSpan(fmtMoney(k.net)), icon: '💰' }
+    ];
+    const countsRow = [
+      { title: 'عدد الفواتير', value: numSpan(fmtNumber(k.invCount)), icon: '📋' },
+      { title: 'عدد المرتجعات', value: numSpan(fmtNumber(k.refCount)), icon: '📋' },
+      { title: 'متوسط الفاتورة', value: numSpan(fmtMoney(k.avgTicket)), icon: '📈' }
+    ];
+
+    function makeCard(c){ return `
+      <div class="card kpi-card p-3 fade-in-up">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:var(--spacing-md);">
+          <div class="kpi-title">${c.title}</div>
+          <span style="font-size:1.5rem; opacity:0.6;">${c.icon}</span>
         </div>
-      `;
-    }
+        <div class="kpi-value">${c.value}</div>
+      </div>
+    `; }
+    function makeSection(title, items){ return `
+      <div class="col-12">
+        <h6 class="text-muted mb-2 mt-3">${title}</h6>
+        <div class="row g-4">
+          ${items.map(c=>`<div class="col-12 col-sm-6 col-lg-3">${makeCard(c)}</div>`).join('')}
+        </div>
+      </div>
+    `; }
     host.innerHTML = `
-      <div class="col-12"><div class="row g-4 mb-0 mb-lg-4">
-        ${row1.map(c=>`<div class="col-12 col-sm-6 col-lg-3">${makeCard(c)}</div>`).join('')}
-      </div></div>
-      <div class="col-12"><div class="row g-4">
-        ${row2.map(c=>`<div class="col-12 col-sm-6 col-lg-3">${makeCard(c)}</div>`).join('')}
-      </div></div>
+      ${makeSection('فواتير', invoicesRow)}
+      ${makeSection('مرتجعات', refundsRow)}
+      ${makeSection('إجمالي', totalRow)}
+      <div class="col-12">
+        <h6 class="text-muted mb-2 mt-3">أعداد</h6>
+        <div class="row g-4">
+          ${countsRow.map(c=>`<div class="col-12 col-sm-6 col-md-4">${makeCard(c)}</div>`).join('')}
+        </div>
+      </div>
     `;
   }
 
@@ -605,6 +666,7 @@
     {key:'branchId', label:'فرع#'},
     {key:'branchName', label:'الفرع'},
     {key:'businessDate', label:'تاريخ العمل'},
+    {key:'createDate', label:'تاريخ الإنشاء'},
     {key:'customer', label:'العميل'},
     {key:'sales', label:'Sales'},
     {key:'qty', label:'Qty'},
@@ -623,15 +685,19 @@
       return;
     }
     const k = computeKPIs(list);
-    const amountTotal = (k.invGross || 0) + (k.refGross || 0);
-    const discountTotal = (k.invDisc || 0) + (k.refDisc || 0);
+    const invGross = k.invGross || 0, invDisc = k.invDisc || 0, invPaid = k.invPaid || 0;
+    const refGross = k.refGross || 0, refDisc = k.refDisc || 0, refPaid = k.refPaid || 0;
+    const netInvoices = invGross - invDisc;
+    const netRefunds = refGross - refDisc;
+    const netDiscounts = invDisc - refDisc;
+    const netPaid = invPaid - refPaid;
     el.classList.remove('d-none');
     el.innerHTML = `
-      <span><strong>Amount total:</strong> ${numSpan(fmtMoney(amountTotal))}</span>
-      <span><strong>Discount total:</strong> ${numSpan(fmtMoney(discountTotal))}</span>
-      <span><strong>Refund Total:</strong> ${numSpan(fmtMoney(k.refPaid))}</span>
-      <span><strong>Net:</strong> ${numSpan(fmtMoney(k.net))}</span>
-      <span><strong>Total Paid:</strong> ${numSpan(fmtMoney((k.invPaid || 0) + (k.refPaid || 0)))}</span>
+      <div class="w-100 small">
+        <div class="mb-2"><strong class="text-muted">فواتير</strong> — اجمالي فواتير المبيعات: ${numSpan(fmtMoney(invGross))} | اجمالي خصم فواتير المبيعات: ${numSpan(fmtMoney(invDisc))} | اجمالي المدفوع: ${numSpan(fmtMoney(invPaid))} | صافي الفواتير: ${numSpan(fmtMoney(netInvoices))}</div>
+        <div class="mb-2"><strong class="text-muted">مرتجعات</strong> — اجمالي فواتير المرتجعات: ${numSpan(fmtMoney(refGross))} | اجمالي خصم المرتجعات: ${numSpan(fmtMoney(refDisc))} | اجمالي المدفوع (للعملاء): ${numSpan(fmtMoney(refPaid))} | صافي المرتجعات: ${numSpan(fmtMoney(netRefunds))}</div>
+        <div class="mb-0"><strong class="text-muted">إجمالي</strong> — صافي فواتير المبيعات: ${numSpan(fmtMoney(netInvoices))} | صافي الخصومات: ${numSpan(fmtMoney(netDiscounts))} | صافي المدفوع: ${numSpan(fmtMoney(netPaid))} | صافي المبيعات: ${numSpan(fmtMoney(k.net))}</div>
+      </div>
     `;
   }
 
@@ -643,7 +709,7 @@
     tbody.innerHTML = '';
 
     if(list.length === 0){
-      tbody.innerHTML = '<tr><td colspan="12" class="text-center py-5"><div class="empty-state"><div class="empty-state-icon">📭</div><div class="empty-state-title">لا توجد عمليات</div><div class="empty-state-text">حاول تعديل الفلتر للعثور على بيانات</div></div></td></tr>';
+      tbody.innerHTML = '<tr><td colspan="13" class="text-center py-5"><div class="empty-state"><div class="empty-state-icon">📭</div><div class="empty-state-title">لا توجد عمليات</div><div class="empty-state-text">حاول تعديل الفلتر للعثور على بيانات</div></div></td></tr>';
       return;
     }
 
@@ -667,6 +733,10 @@
           const icon = t.docType === 'invoice' ? '📄' : '↩️';
           const label = t.docType === 'invoice' ? 'فاتورة' : 'مرتجع';
           html = `${icon} ${label}`;
+        }else if(c.key === 'businessDate'){
+          html = v ? String(v).slice(0, 10) : '';
+        }else if(c.key === 'createDate'){
+          html = v ? String(v).replace('T', ' ').slice(0, 16) : '';
         }else{
           html = (v ?? '');
         }
@@ -701,6 +771,8 @@
         let v = r[c];
         if(['qty','amount','discount','paidAmount'].includes(c)){
           tr.innerHTML += `<td>${numSpan(fmtNumber(v))}</td>`;
+        }else if(c === 'businessDate'){
+          tr.innerHTML += `<td>${v ? String(v).slice(0, 10) : ''}</td>`;
         }else{
           tr.innerHTML += `<td>${v ?? ''}</td>`;
         }
@@ -1080,6 +1152,75 @@
     bar.parentElement?.setAttribute('aria-valuenow', String(p));
   }
 
+  let uploadPreviewState = { fileColumns: [], fileType: null };
+
+  function renderColumnMappingTable(fileType, fileColumns, initialMap){
+    const tbody = $('#mappingTableBody');
+    const fileTypeSelect = $('#mappingFileType');
+    if(!tbody || !fileTypeSelect) return;
+    const fields = fileType === 'refund' ? getRefundFields() : (fileType === 'combined' ? getCombinedFields() : getInvoiceFields());
+    const map = initialMap || buildDefaultMappingFromFileColumns(fileType, fileColumns);
+    fileTypeSelect.value = fileType;
+    const escapeAttr = s => String(s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    const escapeHtml = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    tbody.innerHTML = fields.map(f => {
+      const selected = (map[f.key] != null && map[f.key] !== '') ? map[f.key] : '';
+      const options = [''].concat(fileColumns).map(col =>
+        `<option value="${escapeAttr(col)}"${col === selected ? ' selected' : ''}>${escapeHtml(col || '(لا شيء)')}</option>`
+      ).join('');
+      return `<tr><td class="text-nowrap">${escapeHtml(f.labelAr)} <span class="text-muted small">(${escapeHtml(f.key)})</span></td><td><select class="form-select form-select-sm mapping-select" data-field="${escapeAttr(f.key)}">${options}</select></td></tr>`;
+    }).join('');
+  }
+
+  function getCurrentColumnMap(){
+    const tbody = $('#mappingTableBody');
+    if(!tbody) return null;
+    const map = {};
+    tbody.querySelectorAll('.mapping-select').forEach(sel => {
+      const field = sel.getAttribute('data-field');
+      const val = sel.value;
+      if(field) map[field] = val || '';
+    });
+    return map;
+  }
+
+  const MAX_PREVIEW_ROWS = 200;
+
+  /** Render import preview table: records that will be imported (from first file + current mapping). */
+  function renderImportPreviewTable(records){
+    const tbody = $('#tblImportPreviewBody');
+    const summaryEl = $('#importPreviewSummary');
+    const card = $('#cardImportPreview');
+    if(!tbody || !card) return;
+    const escape = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const total = records.length;
+    const show = Math.min(total, MAX_PREVIEW_ROWS);
+    tbody.innerHTML = records.slice(0, show).map(r => {
+      const typeLabel = r.docType === 'refund' ? 'مرتجع' : 'فاتورة';
+      return `<tr>
+        <td>${escape(typeLabel)}</td>
+        <td>${escape(r.docNo)}</td>
+        <td>${escape(r.branchName || r.branchId || '')}</td>
+        <td class="text-nowrap">${escape(r.businessDate)}</td>
+        <td>${escape(r.customer)}</td>
+        <td class="num">${escape(fmtNumber(r.amount))}</td>
+        <td class="num">${escape(fmtNumber(r.discount))}</td>
+        <td class="num">${escape(fmtNumber(r.paidAmount))}</td>
+      </tr>`;
+    }).join('');
+    if(summaryEl) summaryEl.textContent = total === 0 ? 'لا توجد صفوف ستُستورد.' : `عرض ${show} من ${total} صف. ${total > show ? '...' : ''}`;
+    card.classList.remove('d-none');
+  }
+
+  /** Ask user to confirm import when using manual mapping; returns true only if they consent. */
+  function confirmMappingBeforeImport(files, fileType, columnMap){
+    const fileTypeLabel = fileType === 'refund' ? 'مرتجعات' : (fileType === 'combined' ? 'فواتير ومرتجعات (مختلط)' : 'فواتير');
+    const fileCount = files.length;
+    const fileList = fileCount <= 2 ? files.map(f => f.name).join('، ') : `${files[0].name} و${fileCount - 1} ملف آخر`;
+    const msg = `سيتم استيراد ${fileCount === 1 ? 'الملف' : 'الملفات'} باستخدام التعيين المحدد.\n\nنوع الملف: ${fileTypeLabel}\n${fileCount === 1 ? 'الملف: ' + fileList : 'الملفات: ' + fileList}\n\nهل توافق على المتابعة بالاستيراد؟`;
+    return confirm(msg);
+  }
+
   async function doImport(){
     const input = $('#fileInput');
     const files = Array.from(input?.files || []);
@@ -1087,6 +1228,16 @@
       showAlert('warning','من فضلك اختَر ملف واحد على الأقل.');
       return;
     }
+    const useMapping = $('#cardColumnMapping') && !$('#cardColumnMapping').classList.contains('d-none');
+    const fileType = useMapping ? ($('#mappingFileType')?.value || 'invoice') : null;
+    const columnMap = useMapping ? getCurrentColumnMap() : null;
+    const defaultBranch = useMapping ? getDefaultBranchFromImportUI() : null;
+    const options = (useMapping && fileType) ? { fileType, columnMap, defaultBranch } : null;
+
+    if(useMapping && fileType && !confirmMappingBeforeImport(files, fileType, columnMap)){
+      return;
+    }
+
     updateProgress(0, 1);
     const importSummaryEl = $('#importSummary');
     if (importSummaryEl) importSummaryEl.innerHTML = '';
@@ -1097,7 +1248,7 @@
     for(const f of files){
       try{
         updateProgress(0, 1);
-        const parsed = await parseExcelFile(f);
+        const parsed = await parseExcelFile(f, options || undefined);
         if(!previewRecords.length) previewRecords = parsed.records;
 
         await upsertBranchesFromRecords(parsed.records);
@@ -1910,49 +2061,7 @@
   }
 
   // ---------------------------
-  // Auth & gate
-  // ---------------------------
-  function showGate(){
-    const gate = $('#appGate');
-    const main = $('#appMain');
-    if (gate) gate.classList.remove('d-none');
-    if (main) main.classList.add('d-none');
-  }
-
-  function showApp(){
-    const gate = $('#appGate');
-    const main = $('#appMain');
-    if (gate) gate.classList.add('d-none');
-    if (main) main.classList.remove('d-none');
-  }
-
-  function applyNavByRole(){
-    const settingsNav = document.querySelector('.nav-item-settings');
-    const editNav = document.querySelector('.nav-item-edit');
-    if (settingsNav) settingsNav.style.display = AUTH.canAccessSettings() ? '' : 'none';
-    if (editNav) editNav.style.display = AUTH.canEdit() ? '' : 'none';
-  }
-
-  function updateAuthButtons(){
-    const badge = $('#navUserBadge');
-    const logoutBtn = $('#btnLogout');
-    if (badge && AUTH.isLoggedIn()) {
-      const { username, role } = AUTH.getCurrentUser();
-      const roleLabel = { viewer: 'عرض فقط', editor: 'تعديل', admin: 'مدير', superadmin: 'مدير أعلى' }[role] || role;
-      badge.textContent = `${username} | ${roleLabel}`;
-      badge.classList.remove('d-none');
-    } else if (badge) badge.classList.add('d-none');
-    if (logoutBtn) logoutBtn.classList.toggle('d-none', !AUTH.isLoggedIn());
-  }
-
-  function enforceAuth(){
-    if (AUTH.isLoggedIn()) return true;
-    showGate();
-    return false;
-  }
-
-  // ---------------------------
-  // Analytics Module
+  // Analytics Module (gate in app-gate.js)
   // ---------------------------
   function getAnalyticsFilters(){
     const fromISO = $('#analFrom')?.value || null;
@@ -2159,57 +2268,76 @@
   // ---------------------------
   // Boot
   // ---------------------------
-  async function boot(){
-    await GC.db.dbInit();
-    await AUTH.seedDefaultAdmin();
-
-    if (!AUTH.isLoggedIn()) {
-      showGate();
-      const form = $('#gateLoginForm');
-      const gateMsg = $('#gateMsg');
-      const gateBtn = $('#gateBtnLogin');
-      if (form) {
-        form.addEventListener('submit', async (e)=>{
-          e.preventDefault();
-          const user = ($('#gateUser').value || '').trim();
-          const pass = $('#gatePass').value || '';
-          if (gateMsg) gateMsg.textContent = '';
-          if (!user || !pass) {
-            if (gateMsg) { gateMsg.textContent = 'أدخل اسم المستخدم وكلمة المرور'; gateMsg.classList.add('text-danger'); }
-            return;
-          }
-          if (gateBtn) gateBtn.disabled = true;
-          try {
-            const result = await AUTH.login(user, pass);
-            if (result.ok) {
-              showApp();
-              applyNavByRole();
-              updateAuthButtons();
-              setActiveNav('dashboard');
-              await refreshBranchesUI();
-              const all = await idbGetAll('transactions');
-              setDefaultDateRange(all);
-              await refreshDashboard();
-            } else {
-              if (gateMsg) { gateMsg.textContent = result.message || 'بيانات الدخول غير صحيحة'; gateMsg.classList.add('text-danger'); }
-            }
-          } catch (err) {
-            if (gateMsg) { gateMsg.textContent = err.message || 'خطأ في تسجيل الدخول'; gateMsg.classList.add('text-danger'); }
-          }
-          if (gateBtn) gateBtn.disabled = false;
-        });
-      }
+  async function handleGateLogin(){
+    const gateMsg = document.getElementById('gateMsg');
+    const gateBtn = document.getElementById('gateBtnLogin');
+    const userInput = document.getElementById('gateUser');
+    const passInput = document.getElementById('gatePass');
+    const user = (userInput && userInput.value || '').trim();
+    const pass = (passInput && passInput.value || '');
+    if (gateMsg) gateMsg.textContent = '';
+    if (!AUTH) {
+      if (gateMsg) { gateMsg.textContent = 'التطبيق لم يُحمّل بعد. حدّث الصفحة (F5).'; gateMsg.classList.add('text-danger'); }
       return;
     }
+    if (!user || !pass) {
+      if (gateMsg) { gateMsg.textContent = 'أدخل اسم المستخدم وكلمة المرور'; gateMsg.classList.add('text-danger'); }
+      return;
+    }
+    if (gateBtn) gateBtn.disabled = true;
+    try {
+      if (!GC.db || typeof GC.db.dbInit !== 'function') {
+        if (gateMsg) { gateMsg.textContent = 'خطأ: قاعدة البيانات غير جاهزة. حدّث الصفحة وحاول مرة أخرى.'; gateMsg.classList.add('text-danger'); }
+        if (gateBtn) gateBtn.disabled = false;
+        return;
+      }
+      if (!getDb()) {
+        await GC.db.dbInit();
+        await AUTH.seedDefaultAdmin();
+      }
+      const result = await AUTH.login(user, pass);
+      if (result.ok) {
+        showApp();
+        applyNavByRole();
+        updateAuthButtons();
+        setActiveNav('dashboard');
+        await refreshBranchesUI();
+        const all = await idbGetAll('transactions');
+        setDefaultDateRange(all);
+        await refreshDashboard();
+      } else {
+        if (gateMsg) { gateMsg.textContent = result.message || 'بيانات الدخول غير صحيحة'; gateMsg.classList.add('text-danger'); }
+      }
+    } catch (err) {
+      if (gateMsg) { gateMsg.textContent = (err && err.message) || 'خطأ في تسجيل الدخول'; gateMsg.classList.add('text-danger'); }
+    }
+    if (gateBtn) gateBtn.disabled = false;
+  }
+  window.__gateLogin = handleGateLogin;
 
-    showApp();
-    const st = libsStatus();
-    if(!st.hasXLSX || !st.hasChart) $('#badgeOfflineLib')?.classList.remove('d-none');
+  function attachGateFormHandler(){
+    document.addEventListener('submit', function gateSubmit(e){
+      if (!e.target || e.target.id !== 'gateLoginForm') return;
+      e.preventDefault();
+      e.stopPropagation();
+      handleGateLogin();
+    }, true);
+    var gateBtn = document.getElementById('gateBtnLogin');
+    if (gateBtn) {
+      gateBtn.addEventListener('click', function(e){
+        if (e.target && e.target.id === 'gateBtnLogin') {
+          e.preventDefault();
+          handleGateLogin();
+        }
+      });
+    }
+  }
 
-    applyNavByRole();
-
+  function attachBootListeners() {
+    if (typeof $ === 'undefined' || typeof $$ === 'undefined') return;
     // nav
-    $$('[data-nav]').forEach(a=>{
+    var navLinks = $$('[data-nav]');
+    if (navLinks && navLinks.length) navLinks.forEach(a=>{
       a.addEventListener('click', (e)=>{
         e.preventDefault();
         const page = a.getAttribute('data-nav');
@@ -2261,8 +2389,55 @@
       if(!AUTH.canEdit()) return;
       doImport();
     });
+    $('#btnPreviewImport')?.addEventListener('click', async ()=>{
+      const input = $('#fileInput');
+      const files = Array.from(input?.files || []);
+      if(!files.length){ showAlert('warning', 'اختر ملفاً أولاً.'); return; }
+      const useMapping = $('#cardColumnMapping') && !$('#cardColumnMapping').classList.contains('d-none');
+      const fileType = useMapping ? ($('#mappingFileType')?.value || 'invoice') : null;
+      const columnMap = useMapping ? getCurrentColumnMap() : null;
+      const defaultBranch = useMapping ? getDefaultBranchFromImportUI() : null;
+      const options = (useMapping && fileType) ? { fileType, columnMap, defaultBranch } : undefined;
+      try {
+        const parsed = await parseExcelFile(files[0], options);
+        renderImportPreviewTable(parsed.records);
+      } catch(e) {
+        console.error(e);
+        showAlert('danger', 'فشل معاينة الملف: ' + (e.message || e));
+      }
+    });
+    $('#fileInput')?.addEventListener('change', async ()=>{
+      const input = $('#fileInput');
+      const files = input?.files;
+      const card = $('#cardColumnMapping');
+      if(!files?.length || !card){ if(card) card.classList.add('d-none'); return; }
+      try {
+        const preview = await readExcelPreview(files[0]);
+        uploadPreviewState = { fileColumns: preview.fileColumns, fileType: preview.detectedType };
+        const ft = preview.detectedType === 'combined' ? 'combined' : (preview.detectedType === 'refund' ? 'refund' : 'invoice');
+        renderColumnMappingTable(ft, preview.fileColumns, buildDefaultMappingFromFileColumns(ft, preview.fileColumns));
+        idbGetAll('branches').then(bs => fillDefaultBranchImportSelect($('#defaultBranchImport'), bs));
+        card.classList.remove('d-none');
+      } catch(e) {
+        console.error(e);
+        card.classList.add('d-none');
+      }
+    });
+    $('#mappingFileType')?.addEventListener('change', ()=>{
+      const ft = $('#mappingFileType')?.value || 'invoice';
+      const cols = uploadPreviewState.fileColumns;
+      if(cols.length) renderColumnMappingTable(ft, cols, buildDefaultMappingFromFileColumns(ft, cols));
+    });
+    $('#btnResetMapping')?.addEventListener('click', ()=>{
+      const ft = $('#mappingFileType')?.value || 'invoice';
+      const cols = uploadPreviewState.fileColumns;
+      if(cols.length) renderColumnMappingTable(ft, cols, buildDefaultMappingFromFileColumns(ft, cols));
+    });
     $('#btnClearFiles')?.addEventListener('click', ()=>{
       $('#fileInput').value = '';
+      $('#cardColumnMapping')?.classList.add('d-none');
+      $('#cardImportPreview')?.classList.add('d-none');
+      uploadPreviewState = { fileColumns: [], fileType: null };
       const el = $('#importSummary');
       if (el) el.innerHTML = '';
       updateProgress(0,1);
@@ -2373,98 +2548,69 @@
         renderUsersTable();
       } catch (err) { if (msg) { msg.textContent = err.message || 'فشل الإضافة'; msg.className = 'small mt-2 text-danger'; } }
     });
+  }
 
+  async function boot(){
+    attachBootListeners();
+    if (!AUTH || !GC.db) {
+      if (showGate) showGate();
+      return;
+    }
+    try {
+      await GC.db.dbInit();
+      await AUTH.seedDefaultAdmin();
+    } catch (e) {
+      console.error(e);
+      if (showGate) showGate();
+      return;
+    }
+    if (!AUTH.isLoggedIn()) {
+      if (showGate) showGate();
+      return;
+    }
+    if (showApp) showApp();
+    const st = libsStatus();
+    if (!st.hasXLSX || !st.hasChart) { var badge = $('#badgeOfflineLib'); if (badge) badge.classList.remove('d-none'); }
+    if (applyNavByRole) applyNavByRole();
     await refreshBranchesUI();
     repSalesMS = createSalesMultiSelect();
-    updateAuthButtons();
+    if (updateAuthButtons) updateAuthButtons();
     const all = await idbGetAll('transactions');
     setDefaultDateRange(all);
     await refreshDashboard();
     setActiveNav('dashboard');
   }
 
-  window.addEventListener('load', ()=>{
+  attachGateFormHandler();
+
+  window.addEventListener('golden-cala-login', async function () {
+    try {
+      await refreshBranchesUI();
+      var all = await idbGetAll('transactions');
+      setDefaultDateRange(all);
+      await refreshDashboard();
+      applyNavByRole();
+      updateAuthButtons();
+      setActiveNav('dashboard');
+    } catch (e) { console.error(e); }
+  });
+
+  function runBoot() {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('sw.js').then(() => {}).catch(() => {});
     }
     boot().catch(err=>{
       console.error(err);
-      showAlert('danger','تعذر تشغيل التطبيق: ' + (err.message||err), 10000);
-    });
-  });
-
-// ---------------------------
-// Data section helpers (inside IIFE to access idbGetAll)
-// ---------------------------
-// populate statistics and branch list inside settings (merged data page)
-async function updateDataSection(){
-  const all = await idbGetAll('transactions');
-  
-  // Storage Size
-  if(navigator.storage && navigator.storage.estimate){
-    try {
-      const est = await navigator.storage.estimate();
-      const mb = (est.usage / (1024*1024)).toFixed(2);
-      const el = $('#storageSize');
-      if(el) el.textContent = mb + ' MB';
-    } catch(e){ console.error(e); }
-  }
-
-  // simple counts
-  const elTx = $('#statTransactions'); if(elTx) elTx.textContent = all.length;
-  const elBr = $('#statBranches'); if(elBr) elBr.textContent = new Set(all.map(t=>t.branchId)).size;
-  const elSa = $('#statSales'); if(elSa) elSa.textContent = new Set(all.map(t=>t.sales||'(غير محدد)')).size;
-  const elCu = $('#statCustomers'); if(elCu) elCu.textContent = new Set(all.map(t=>t.customer||'(غير محدد)')).size;
-
-  // branch summary table
-  const tbody = $('#tblAllBranches tbody');
-  if(tbody){
-    tbody.innerHTML = '';
-    const agg = {};
-    all.forEach(t=>{
-      const id = t.branchId || '(غير محدد)';
-      const name = t.branchName || id;
-      if(!agg[id]) agg[id] = {name, count:0, net:0};
-      agg[id].count++;
-      agg[id].net += netValue(t);
-    });
-    Object.values(agg).forEach(b=>{
-      const tr = document.createElement('tr');
-      tr.innerHTML = `<td>${b.name}</td><td>${b.count}</td><td>${fmtNumber(b.net)}</td>`;
-      tbody.appendChild(tr);
+      var msg = 'تعذر تشغيل التطبيق: ' + (err.message||err);
+      showAlert('danger', msg, 10000);
+      var gateMsg = $('#gateMsg');
+      if (gateMsg) { gateMsg.textContent = msg; gateMsg.classList.add('text-danger'); }
     });
   }
-
-  // Inject Developer Info if not present
-  const settingsPage = $('#page-settings');
-  if(settingsPage && !document.getElementById('devInfoCard')){
-    const div = document.createElement('div');
-    div.id = 'devInfoCard';
-    div.className = 'card mt-4 mb-4 fade-in-up';
-    div.innerHTML = `
-      <div class="card-header bg-white fw-bold">ℹ️ عن النظام والمطور</div>
-      <div class="card-body">
-        <div class="row g-3">
-          <div class="col-md-6">
-            <h6 class="text-primary mb-3">معلومات المطور</h6>
-            <p class="mb-2"><strong>تطوير:</strong> Ahmed Elsawi</p>
-            <p class="mb-2"><strong>الدعم الفني:</strong> ahmedmalsawi@gmail.com</p>
-          </div>
-          <div class="col-md-6">
-            <h6 class="text-primary mb-3">معلومات النسخة</h6>
-            <p class="mb-2"><strong>الإصدار:</strong> v2.5.0 (Premium)</p>
-            <p class="mb-2"><strong>تاريخ التحديث:</strong> March 2026</p>
-            <p class="mb-0"><strong>الترخيص:</strong> Golden Cala</p>
-          </div>
-        </div>
-        <hr class="my-3">
-        <div class="text-center text-muted small">
-          &copy; 2026 Ahmed Elsawi. جميع الحقوق محفوظة.
-        </div>
-      </div>
-    `;
-    settingsPage.appendChild(div);
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', runBoot);
+  } else {
+    runBoot();
   }
-}
 
 })();

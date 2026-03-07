@@ -3,6 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Allow eval for CDN libs (e.g. XLSX formula parser) that require it; remove if you use xlsx.core.min.js only -->
+  <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net;">
   <title>🌟 Golden Cala Sales Analytics - لوحة تحليل مبيعات قولدن كالا</title>
 
   <!-- Arabic-first typography -->
@@ -25,14 +27,14 @@
     <div class="app-gate-brand">✨ Golden Cala</div>
     <h1 class="app-gate-title">لوحة تحليل المبيعات</h1>
     <p class="app-gate-subtitle">سجّل الدخول للمتابعة</p>
-    <form id="gateLoginForm" class="app-gate-form">
+    <form id="gateLoginForm" class="app-gate-form" action="javascript:void(0)" role="form">
       <div class="mb-3">
         <label for="gateUser" class="form-label">اسم المستخدم</label>
-        <input type="text" class="form-control" id="gateUser" autocomplete="username" required>
+        <input type="text" class="form-control" id="gateUser" autocomplete="username" placeholder="مثال: admin">
       </div>
       <div class="mb-4">
         <label for="gatePass" class="form-label">كلمة المرور</label>
-        <input type="password" class="form-control" id="gatePass" autocomplete="current-password" required>
+        <input type="password" class="form-control" id="gatePass" autocomplete="current-password" placeholder="مثال: admin123">
       </div>
       <div id="gateMsg" class="small mb-2 text-danger" aria-live="polite"></div>
       <button type="submit" class="btn btn-primary w-100 btn-lg" id="gateBtnLogin">دخول</button>
@@ -313,7 +315,53 @@
             </div>
             <div id="uploadStatus" class="mb-3"></div>
             <div id="importSummary" class="mt-3"></div>
-            <button class="btn btn-primary" id="btnImportFile">📥 استيراد الملف</button>
+            <div class="d-flex gap-2 flex-wrap">
+              <button class="btn btn-primary" id="btnImportFile">📥 استيراد الملف</button>
+              <button type="button" class="btn btn-outline-primary" id="btnPreviewImport">👁 معاينة البيانات قبل الاستيراد</button>
+            </div>
+          </div>
+        </div>
+        <div class="card mt-3 d-none" id="cardImportPreview">
+          <div class="card-header">👁 معاينة البيانات (سيتم استيرادها كما تظهر)</div>
+          <div class="card-body">
+            <p class="text-secondary small mb-2">الجدول أدناه يعرض الصفوف التي سيتم استيرادها وفق التعيين الحالي. تحقق من البيانات قبل الضغط على «استيراد الملف».</p>
+            <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+              <table class="table table-sm table-bordered align-middle" id="tblImportPreview">
+                <thead class="table-light sticky-top"><tr><th>نوع</th><th>رقم</th><th>الفرع</th><th>التاريخ</th><th>العميل</th><th>المبلغ</th><th>الخصم</th><th>المدفوع</th></tr></thead>
+                <tbody id="tblImportPreviewBody"></tbody>
+              </table>
+            </div>
+            <div id="importPreviewSummary" class="small text-muted mt-2"></div>
+          </div>
+        </div>
+        <div class="card mt-3 d-none" id="cardColumnMapping">
+          <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <span>🗂️ تعيين الأعمدة (اختياري)</span>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="btnResetMapping">استخدام الأسماء الافتراضية</button>
+          </div>
+          <div class="card-body">
+            <p class="text-secondary small mb-3">اختر أي عمود في الملف يطابق كل حقل. إذا كانت أسماء الأعمدة في الملف تختلف عن الافتراضية، عيّنها هنا. بعد الضغط على «استيراد الملف» سيُطلب تأكيدك قبل تنفيذ الاستيراد.</p>
+            <div class="mb-3">
+              <label class="form-label small">نوع الملف</label>
+              <select class="form-select form-select-sm" id="mappingFileType">
+                <option value="invoice">فواتير (Invoice)</option>
+                <option value="refund">مرتجعات (Refund)</option>
+                <option value="combined">فواتير ومرتجعات في ملف واحد (Invoice / Refund)</option>
+              </select>
+            </div>
+            <div class="table-responsive">
+              <table class="table table-sm table-bordered">
+                <thead><tr><th>الحقل</th><th>عمود في الملف</th></tr></thead>
+                <tbody id="mappingTableBody"></tbody>
+              </table>
+            </div>
+            <div class="mt-3 pt-3 border-top">
+              <label class="form-label small fw-semibold">🏢 ربط الفرع يدوياً (اختياري)</label>
+              <p class="text-secondary small mb-2">في حال عدم وجود عمود للفرع في الملف، أو لاستخدام فرع واحد لكل الصفوف المستوردة:</p>
+              <select class="form-select form-select-sm" id="defaultBranchImport">
+                <option value="">لا فرع افتراضي</option>
+              </select>
+            </div>
           </div>
         </div>
       </div>
@@ -793,14 +841,19 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<!-- Core build avoids eval (CSP-friendly); use xlsx.full.min.js if you need formula evaluation -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.core.min.js"></script>
 
 <!-- App modules (order matters) -->
 <script src="js/helpers.js"></script>
 <script src="js/db.js"></script>
 <script src="js/auth.js"></script>
+<script src="js/app-login.js"></script>
 <script src="js/excel.js"></script>
 <script src="js/core.js"></script>
+<script src="js/app-refs.js"></script>
+<script src="js/app-gate.js"></script>
+<script src="js/app-settings.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

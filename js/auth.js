@@ -16,21 +16,23 @@
     return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
   }
 
+  const storage = typeof localStorage !== 'undefined' ? localStorage : sessionStorage;
+
   function getSession(){
-    const user = sessionStorage.getItem(SESSION_USER);
-    const role = sessionStorage.getItem(SESSION_ROLE);
+    const user = storage.getItem(SESSION_USER);
+    const role = storage.getItem(SESSION_ROLE);
     return { username: user || null, role: role || null };
   }
 
   function setSession(username, role){
-    sessionStorage.setItem(SESSION_USER, username);
-    sessionStorage.setItem(SESSION_ROLE, role);
+    storage.setItem(SESSION_USER, username);
+    storage.setItem(SESSION_ROLE, role);
   }
 
   function clearSession(){
-    sessionStorage.removeItem(SESSION_USER);
-    sessionStorage.removeItem(SESSION_ROLE);
-    sessionStorage.removeItem('auth_ok');
+    storage.removeItem(SESSION_USER);
+    storage.removeItem(SESSION_ROLE);
+    storage.removeItem('auth_ok');
   }
 
   async function seedDefaultAdmin(){
@@ -72,7 +74,7 @@
   }
 
   function isLoggedIn(){
-    return !!sessionStorage.getItem(SESSION_USER);
+    return !!storage.getItem(SESSION_USER);
   }
 
   function getCurrentUser(){
@@ -80,7 +82,7 @@
   }
 
   function getRole(){
-    return sessionStorage.getItem(SESSION_ROLE) || null;
+    return storage.getItem(SESSION_ROLE) || null;
   }
 
   function canAccessSettings(){

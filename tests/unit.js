@@ -5,6 +5,7 @@
   const buildInvoiceRecords = GC.excel.buildInvoiceRecords;
   const buildRefundRecords = GC.excel.buildRefundRecords;
   const filterTransactions = GC.core.filterTransactions;
+  const computeKPIs = GC.core.computeKPIs;
   const aggByBranch = GC.core.aggByBranch;
   const netValue = GC.core.netValue;
 
@@ -35,6 +36,15 @@
     assertEqual(out[0].docNo, '44', 'buildInvoiceRecords docNo');
     assertEqual(out[0].docType, 'invoice', 'buildInvoiceRecords docType');
     assertEqual(out[0].paidAmount, 100, 'buildInvoiceRecords paidAmount');
+    assertEqual(out[0].businessDate, '2024-01-15', 'buildInvoiceRecords businessDate from file only');
+  })();
+  (function(){
+    const jsonRows = [
+      { 'Invoice': 'Store : 1 - فرع', 'Business Date': null },
+      { 'Invoice': '99', 'Business Date': null, 'Customer': 'ج', 'Sales': 'س', 'Amount': 50, 'Paid Amount': 50, 'Qty': 1, 'Discount': 0, 'Tax': 0, 'Mobile': '', 'Status': '', 'Refunded': '', 'Type': '', 'Note Log': '', 'Create User': '', 'Create Date': '2024-06-01T10:00:00' }
+    ];
+    const out = buildInvoiceRecords(jsonRows, 'skip.xlsx');
+    assertEqual(out.length, 0, 'buildInvoiceRecords skips row when Business Date is empty');
   })();
 
   // --- buildRefundRecords ---
@@ -68,6 +78,13 @@
 
     const byType = filterTransactions(all, null, null, 'all', 'invoice', null, 'all');
     assertEqual(byType.length, 2, 'filterTransactions docType invoice');
+
+    const withNoDate = [
+      { businessDate: null, createDate: '2024-01-25T00:00:00', branchId: 1, docType: 'invoice' },
+      { businessDate: '2024-01-20', branchId: 1, docType: 'invoice' }
+    ];
+    const withDateFilter = filterTransactions(withNoDate, '2024-01-01', '2024-01-31', 'all', 'all', null, 'all');
+    assertEqual(withDateFilter.length, 1, 'filterTransactions excludes tx without businessDate when date filter set');
   })();
 
   // --- aggByBranch ---
@@ -100,6 +117,20 @@
   (function(){
     assertEqual(netValue({ docType: 'invoice', paidAmount: 100 }), 100, 'netValue invoice');
     assertEqual(netValue({ docType: 'refund', paidAmount: 30 }), -30, 'netValue refund');
+  })();
+
+  // --- computeKPIs: صافي المبيعات = اجمالي الفواتير - اجمالي الخصومات - اجمالي المرتجعات ---
+  (function(){
+    const list = [
+      { docType: 'invoice', amount: 1000, discount: 100, paidAmount: 900 },
+      { docType: 'refund', amount: 200, discount: 10, paidAmount: 190 }
+    ];
+    const k = computeKPIs(list);
+    assertEqual(k.invGross, 1000, 'computeKPIs invGross');
+    assertEqual(k.invDisc, 100, 'computeKPIs invDisc');
+    assertEqual(k.refGross, 200, 'computeKPIs refGross');
+    const expectedNet = 1000 - 100 - 200;
+    assertEqual(k.net, expectedNet, 'computeKPIs net = invGross - invDisc - refGross');
   })();
 
   const summary = '\n--- ' + passed + ' passed, ' + failed + ' failed ---';

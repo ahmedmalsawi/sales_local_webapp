@@ -16,19 +16,28 @@
     return (Number(r) * 100).toFixed(1) + '%';
   }
 
+  function getTimeOffset(){
+    const s = localStorage.getItem('gc_time_offset');
+    return s === null ? 6 : Number(s);
+  }
+
   function toISODate(d){
     if(!d) return null;
-    if(d instanceof Date && !isNaN(d)) return d.toISOString().slice(0,10);
-    const dd = new Date(d);
-    if(!isNaN(dd)) return dd.toISOString().slice(0,10);
-    return null;
+    if(typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d.trim())) return d.trim();
+    const dd = (d instanceof Date) ? d : new Date(d);
+    if(isNaN(dd)) return null;
+    // Shift by offset hours (treat input as UTC, add offset, print as UTC)
+    const offset = getTimeOffset();
+    const shifted = new Date(dd.getTime() + (offset * 3600000));
+    return shifted.toISOString().slice(0,10);
   }
   function toISODateTime(d){
     if(!d) return null;
-    if(d instanceof Date && !isNaN(d)) return d.toISOString();
-    const dd = new Date(d);
-    if(!isNaN(dd)) return dd.toISOString();
-    return null;
+    const dd = (d instanceof Date) ? d : new Date(d);
+    if(isNaN(dd)) return null;
+    const offset = getTimeOffset();
+    const shifted = new Date(dd.getTime() + (offset * 3600000));
+    return shifted.toISOString().slice(0,19);
   }
 
   function showAlert(type, msg, timeoutMs=5000){
@@ -151,6 +160,7 @@
   GC.fmtMoney = fmtMoney;
   GC.fmtPercent = fmtPercent;
   GC.toISODate = toISODate;
+  GC.getTimeOffset = getTimeOffset;
   GC.toISODateTime = toISODateTime;
   GC.showAlert = showAlert;
   GC.showLoadingState = showLoadingState;

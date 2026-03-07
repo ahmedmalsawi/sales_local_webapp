@@ -7,15 +7,17 @@
   const fmtPercent = GC.fmtPercent;
   const monthKeyFromISODate = GC.monthKeyFromISODate;
 
+  /** تاريخ المعاملة للتقرير: من عمود تاريخ العمل في الملف فقط (لا يُستخدم Create Date) */
   function txISODate(t){
-    return t.businessDate || (t.createDate ? t.createDate.slice(0,10) : null);
+    return t.businessDate || null;
   }
 
   function filterTransactions(all, fromISO, toISO, branchId, docType, salesSet, invoiceStatus){
     return all.filter(t => {
       const d = txISODate(t);
-      if(fromISO && d && d < fromISO) return false;
-      if(toISO && d && d > toISO) return false;
+      if(fromISO || toISO){ if(!d) return false; }
+      if(fromISO && d < fromISO) return false;
+      if(toISO && d > toISO) return false;
       if(branchId && branchId !== 'all' && String(t.branchId) !== String(branchId)) return false;
       if(docType && docType !== 'all' && t.docType !== docType) return false;
       if(salesSet && salesSet.size > 0){
@@ -51,7 +53,8 @@
     const qtyInv = invoices.reduce((s,x)=>s+Number(x.qty||0),0);
     const qtyRef = refunds.reduce((s,x)=>s+Number(x.qty||0),0);
 
-    const net = invPaid - refPaid;
+    /** صافي المبيعات = اجمالي الفواتير - اجمالي الخصومات - اجمالي المرتجعات */
+    const net = invGross - invDisc - refGross;
     const txCount = list.length;
     const invCount = invoices.length;
     const refCount = refunds.length;
